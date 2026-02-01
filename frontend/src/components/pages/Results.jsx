@@ -1,14 +1,19 @@
 import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
-import { useState } from "react";
+import "primereact/resources/themes/lara-light-indigo/theme.css";
+import { useEffect, useState } from "react";
 import { Box, Grid } from "@mui/material";
 import { MetadataFilters, SearchBar } from "../common";
+import { getTestData } from "../../api";
+import { displayColumns } from "../../utils";
 
 export const Results = () => {
     // Binary if currently waiting on API call
     const [loading, setLoading] = useState(false);
     // Store search results
     const [searchResults, setSearchResults] = useState([]);
+    // Store all records - REMOVE THIS
+    const [allResults, setAllResults] = useState([]);
     // Total number of results for search
     const [totalResults, setTotalResults] = useState(-1);
     // Primereact table parameters
@@ -17,13 +22,35 @@ export const Results = () => {
 
     // Function to submit a new search query
     const onSubmit = () => {
-
+        setLoading(true);
+        getTestData()
+            .then(x => {
+                setAllResults(x);
+                setTotalResults(x.length);
+            })
+            .finally(x => setLoading(false));
     }
 
     // Function to collect a new page of results from API
-    const onPage = () => {
-
+    const onPage = (event) => {
+        console.log(event)
+        const page = event.page;
+        const start = page * pageLength;
+        const end = start + pageLength;
+        setCurrentPage(page);
+        setSearchResults(allResults.slice(start, end));
     }
+
+    // Load initial results
+    useEffect(() => {
+        onSubmit();
+    }, []);
+
+    // Set to first page when total results changes
+    useEffect(() => {
+        setCurrentPage(1);
+        onPage({ page: 0 });
+    }, [totalResults]);
 
     return <>
         <Box
@@ -37,9 +64,11 @@ export const Results = () => {
                 container 
                 rowSpacing={3 }
                 sx={{ 
-                    backgroundColor: '#f8f9fa'
+                    // backgroundColor: '#f8f9fa',
+                    mt: "5dvh",
                 }}
             >
+                {/* Search bar */}
                 <Grid size = {9}>
                     <Box
                         sx = {{
@@ -55,10 +84,9 @@ export const Results = () => {
                     </Box>
                     
                 </Grid>
-                <Grid 
-                    size = {3}
-                    
-                >
+
+                {/* Metadata filters button */}
+                <Grid size = {3}>
                     <Box
                         sx={{
                             float: "left"
@@ -66,13 +94,13 @@ export const Results = () => {
                     >
                         <MetadataFilters
                             disabled={loading}
-                            
                         />
                     </Box>
                 </Grid>
-                <Grid
-                    size={12}
-                >
+
+                {/* Results table */}
+                <Grid size={12}>
+                    {/* Loading spinner while waiting on search */}
                     {loading && (
                         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mt: { xs: 3, sm: "50px" }, width: '100%' }}>
                             <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "60vh" }}>
@@ -83,13 +111,9 @@ export const Results = () => {
                         </Box>
                     )}
 
+                    {/* Results table once search is complete */}
                     {!loading && (
-                        <Box sx={{ 
-                            width: '100%',
-                            maxWidth: '95dvw',
-                            display: 'flex',
-                            justifyContent: 'center'
-                        }}>
+                        <Box>
                             <DataTable
                                 value={searchResults}
                                 scrollable
@@ -103,18 +127,59 @@ export const Results = () => {
                                 onPage={onPage}
                                 first={currentPage * pageLength}
                                 emptyMessage="No Records Found"
-                                resizableColumns
-                                columnResizeMode="expand"
+                                paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
+                                currentPageReportTemplate="Showing {first} to {last} of {totalRecords} entries"
                             >
-                                {/* Choose columns to display */}
-                                <Column/>
+                                {/* Display selected columns */}
+                                {displayColumns.map((col, i) => {
+                                    const id = col["id"]
+                                    const colName = col["name"]
+
+                                    return <Column
+                                        key = {i}
+                                        field = {id}
+                                        header = {colName}
+                                        style = {{
+                                            minWidth: "130px",
+                                            wordWrap: "break-word"
+                                        }}
+                                        body = {(record) => {
+                                            // Format table cells
+                                            return <Box
+                                                sx = {{
+                                                    minHeight: '60px',
+                                                    maxHeight: '200px',
+                                                    overflowY: 'auto',
+                                                    verticalAlign: 'top',
+                                                    pt: 0.5,
+                                                    whiteSpace: 'normal',
+                                                    wordWrap: 'break-word',
+                                                    lineHeight: 1.4,
+                                                    fontSize: '0.875rem',
+                                                    '&::-webkit-scrollbar': { width: '6px' },
+                                                    '&::-webkit-scrollbar-track': { 
+                                                        background: '#f1f1f1', 
+                                                        borderRadius: '3px' 
+                                                    },
+                                                    '&::-webkit-scrollbar-thumb': { 
+                                                        background: '#c1c1c1', 
+                                                        borderRadius: '3px' 
+                                                    },
+                                                    '&::-webkit-scrollbar-thumb:hover': { 
+                                                        background: '#a1a1a1' 
+                                                    }
+                                                }}
+                                            >
+                                                { record[id] }
+                                            </Box>
+                                        }}
+                                    />
+                                })}
                             </DataTable>
                         </Box>
                     )}
                 </Grid>
             </Grid>
-            
-            
         </Box>
     </>
 }
