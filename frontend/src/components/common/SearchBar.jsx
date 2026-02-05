@@ -7,7 +7,7 @@ export const SearchBar = ({ disabled, onSubmit }) => {
 
     const onEnter = (event) => {
         if (event.key == "Enter") {
-            onSubmit();
+            onSubmit(userQuery);
         }
     }
 

@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 export const Search = () => {
     const navigate = useNavigate();
     
-    const onSubmit = () => {
+    const onSubmit = (query) => {
         navigate("/results");
     }
 
@@ -40,7 +40,8 @@ export const Search = () => {
                 {/* Search Bar */}
                 <Box
                     sx = {{
-                        py: "1dvh"
+                        py: "1dvh",
+                        width: "40dvw"
                     }}
                 >
                     <SearchBar

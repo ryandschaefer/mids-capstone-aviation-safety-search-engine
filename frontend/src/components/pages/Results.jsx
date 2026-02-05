@@ -2,12 +2,15 @@ import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
 import "primereact/resources/themes/lara-light-indigo/theme.css";
 import { useEffect, useState } from "react";
-import { Box, Grid } from "@mui/material";
+import { Box, Button, Grid, Typography } from "@mui/material";
 import { MetadataFilters, SearchBar } from "../common";
 import { getTestData } from "../../api";
 import { displayColumns } from "../../utils";
+import { useNavigate } from "react-router-dom";
 
 export const Results = () => {
+    const navigate = useNavigate();
+
     // Binary if currently waiting on API call
     const [loading, setLoading] = useState(false);
     // Store search results
@@ -19,16 +22,21 @@ export const Results = () => {
     // Primereact table parameters
     const [currentPage, setCurrentPage] = useState(1);
     const [pageLength, setPageLength] = useState(10);
+    // Query for the current search results
+    const [userQuery, setUserQuery] = useState("");
 
     // Function to submit a new search query
-    const onSubmit = () => {
+    const onSubmit = (query) => {
         setLoading(true);
         getTestData()
             .then(x => {
                 setAllResults(x);
                 setTotalResults(x.length);
             })
-            .finally(x => setLoading(false));
+            .finally(x => {
+                setLoading(false);
+                setUserQuery(query);
+            });
     }
 
     // Function to collect a new page of results from API
@@ -68,8 +76,23 @@ export const Results = () => {
                     mt: "5dvh",
                 }}
             >
+                {/* Home button */}
+                <Grid size = {1}>
+                    <Box
+                        sx = {{
+                            textAlign: "center",
+                        }}
+                    >
+                        <Button
+                            onClick = {() => navigate("/")}
+                        >
+                            Aviation Safety Search
+                        </Button>
+                    </Box>
+                </Grid>
+
                 {/* Search bar */}
-                <Grid size = {9}>
+                <Grid size = {8}>
                     <Box
                         sx = {{
                             width: "80%",
@@ -82,7 +105,6 @@ export const Results = () => {
                             onSubmit={onSubmit}
                         />
                     </Box>
-                    
                 </Grid>
 
                 {/* Metadata filters button */}
@@ -114,6 +136,11 @@ export const Results = () => {
                     {/* Results table once search is complete */}
                     {!loading && (
                         <Box>
+                            <Typography
+                                variant="p"
+                            >
+                                There were { totalResults } results for "{ userQuery }"
+                            </Typography>
                             <DataTable
                                 value={searchResults}
                                 scrollable
