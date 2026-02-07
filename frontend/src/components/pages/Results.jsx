@@ -7,6 +7,7 @@ import { MetadataFilters, SearchBar } from "../common";
 import { getBM25Data, getTestData } from "../../api";
 import { displayColumns } from "../../utils";
 import { useNavigate } from "react-router-dom";
+import humanizeDuration from "humanize-duration";
 
 export const Results = () => {
     const navigate = useNavigate();
@@ -26,6 +27,7 @@ export const Results = () => {
     const [userQuery, setUserQuery] = useState("");
     // Elapsed time to run query
     const [queryTime, setQueryTime] = useState(-1.0);
+    const [queryTimeText, setQueryTimeText] = useState("");
 
     // Function to submit a new search query
     const onSubmit = () => {
@@ -67,7 +69,15 @@ export const Results = () => {
     useEffect(() => {
         setCurrentPage(1);
         onPage({ page: 0 });
-    }, [totalResults]);
+    }, [userQuery, totalResults]);
+
+    // Update query time text every time query time updates
+    useEffect(() => {
+        setQueryTimeText(humanizeDuration(queryTime, {
+            round: true,
+            units: ["s", "ms"]
+        }));
+    }, [queryTime]);
 
     return <>
         <Box
@@ -149,7 +159,7 @@ export const Results = () => {
                             <Typography
                                 variant="p"
                             >
-                                There were { totalResults } results for "{ userQuery }"
+                                { totalResults } results for "{ userQuery }" found in { queryTimeText }
                             </Typography>
                             <DataTable
                                 value={searchResults}
