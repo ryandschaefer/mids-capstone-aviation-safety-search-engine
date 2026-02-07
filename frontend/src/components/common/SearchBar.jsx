@@ -1,15 +1,22 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { InputAdornment, TextField } from "@mui/material";
 import { Search as SearchIcon } from "@mui/icons-material";
 
-export const SearchBar = ({ disabled, onSubmit }) => {
+export const SearchBar = ({ disabled, onSubmit, initQuery }) => {
     const [userQuery, setUserQuery] = useState("");
 
     const onEnter = (event) => {
         if (event.key == "Enter") {
-            onSubmit(userQuery);
+            localStorage.setItem("user-query", userQuery)
+            onSubmit();
         }
     }
+
+    useEffect(() => {
+        if (initQuery) {
+            setUserQuery(initQuery);
+        }
+    }, [initQuery]);
 
     return <>
         <TextField

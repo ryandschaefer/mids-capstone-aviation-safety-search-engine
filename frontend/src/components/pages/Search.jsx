@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 export const Search = () => {
     const navigate = useNavigate();
     
-    const onSubmit = (query) => {
+    const onSubmit = () => {
         navigate("/results");
     }
 

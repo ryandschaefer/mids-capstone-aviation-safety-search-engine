@@ -4,7 +4,7 @@ import "primereact/resources/themes/lara-light-indigo/theme.css";
 import { useEffect, useState } from "react";
 import { Box, Button, Grid, Typography } from "@mui/material";
 import { MetadataFilters, SearchBar } from "../common";
-import { getTestData } from "../../api";
+import { getBM25Data, getTestData } from "../../api";
 import { displayColumns } from "../../utils";
 import { useNavigate } from "react-router-dom";
 
@@ -24,19 +24,28 @@ export const Results = () => {
     const [pageLength, setPageLength] = useState(10);
     // Query for the current search results
     const [userQuery, setUserQuery] = useState("");
+    // Elapsed time to run query
+    const [queryTime, setQueryTime] = useState(-1.0);
 
     // Function to submit a new search query
-    const onSubmit = (query) => {
-        setLoading(true);
-        getTestData()
-            .then(x => {
-                setAllResults(x);
-                setTotalResults(x.length);
-            })
-            .finally(x => {
-                setLoading(false);
-                setUserQuery(query);
-            });
+    const onSubmit = () => {
+        const query = localStorage.getItem("user-query");
+        if (query) {
+            setLoading(true);
+            const startQueryTime = performance.now();
+            getBM25Data(query)
+                .then(x => {
+                    setAllResults(x);
+                    setTotalResults(x.length);
+                })
+                .finally(x => {
+                    setLoading(false);
+                    setUserQuery(query);
+                    setQueryTime(performance.now() - startQueryTime);
+                });
+        } else {
+            navigate("/");
+        }
     }
 
     // Function to collect a new page of results from API
@@ -103,6 +112,7 @@ export const Results = () => {
                         <SearchBar
                             disabled={loading}
                             onSubmit={onSubmit}
+                            initQuery={userQuery}
                         />
                     </Box>
                 </Grid>

@@ -18,5 +18,9 @@ export const displayColumns = [
     {
         id: "Report 1_Narrative",
         name: "Narrative"
+    },
+    {
+        id: "score",
+        name: "Relevancy"
     }
 ]
