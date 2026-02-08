@@ -8,6 +8,7 @@ import { getBM25Data, getTestData } from "../../api";
 import { displayColumns } from "../../utils";
 import { useNavigate } from "react-router-dom";
 import humanizeDuration from "humanize-duration";
+import Highlighter from "react-highlight-words";
 
 export const Results = () => {
     const navigate = useNavigate();
@@ -57,7 +58,36 @@ export const Results = () => {
         const start = page * pageLength;
         const end = start + pageLength;
         setCurrentPage(page);
-        setSearchResults(allResults.slice(start, end));
+        highlight(allResults.slice(start, end));
+    }
+
+    // Highlight query terms in the text
+    const highlight = (results) => {
+        // Narrative column
+        const col = "Report 1_Narrative";
+        // Tokenize search query
+        const terms = userQuery.split(" ");
+
+        // Iterate through results on the current page
+        results = results.map(row => {
+            // Clean narrative text
+            if (!row[col]) {
+                row[col] = "";
+            } else if (typeof row[col] !== "string") {
+                row[col] = row[col].toString();
+            }
+
+            // Highlight search terms in the narrative
+            row[col] = (
+                <Highlighter
+                    searchWords={terms}
+                    textToHighlight={row[col]}
+                    autoEscape={false}
+                />
+            )
+            return row;
+        });
+        setSearchResults(results);
     }
 
     // Load initial results

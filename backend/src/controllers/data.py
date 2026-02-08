@@ -16,7 +16,8 @@ def get_test_data():
 def get_bm25_data(query: str):
     # Search with BM25
     df_bm25 = pl.DataFrame(bm25.search(query, 50)) \
-        .select(["score", "parent_doc_id"])
+        .select(["score", "parent_doc_id"]) \
+        .unique("parent_doc_id", keep = "first")
     # Cross reference IDs with original dataset
     df_results = df \
         .join(
@@ -25,5 +26,5 @@ def get_bm25_data(query: str):
             right_on = "parent_doc_id"
         ) \
         .sort("score", descending=True)
-    # Return the top 15 records
+    # Return the results
     return df_results.to_dicts()
