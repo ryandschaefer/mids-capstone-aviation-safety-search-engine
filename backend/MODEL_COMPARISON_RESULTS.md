@@ -1,206 +1,164 @@
-# Model Comparison Results
+# Model Comparison Results - Comprehensive Evaluation
+
+**Evaluation Dataset:** Ronald's Synthetic Queries (rnapberkeley/asrs)
+**Number of Queries:** 200
+**Number of Documents:** 162
 
 ---
 
-## Test Setup
+## Executive Summary
 
-### Dataset
-- **Source**: ASRS (Aviation Safety Reporting System)
-- **Sample size**: 10 aviation incident narratives
-- **Test queries**: 5 aviation-specific scenarios:
-  1. "altitude crossing restriction not met"
-  2. "TCAS resolution advisory"
-  3. "runway incursion at taxiway"
-  4. "engine failure on takeoff"
-  5. "loss of separation between aircraft"
+This evaluation tested **16 models** on 200 synthetic aviation queries from Ronald's dataset.
 
-### Metric
-- **Cosine Similarity**: Normalized dot product between query and document embeddings
-- Higher similarity = better semantic understanding of aviation context
+### Top 3 Models:
+
+**1. BERT-base-cased**
+- Recall@100: **0.5400** (54.0%)
+- MRR: 0.0318
+- Embedding Dimension: 768
+- Category: Previous
+
+**2. MPNet-base-v2**
+- Recall@100: **0.5300** (53.0%)
+- MRR: 0.0499
+- Embedding Dimension: 768
+- Category: Proven
+
+**3. RoBERTa-base**
+- Recall@100: **0.5100** (51.0%)
+- MRR: 0.0325
+- Embedding Dimension: 768
+- Category: Previous
 
 ---
 
-## Results
+## Complete Results
 
-| Model | Embedding Dim | Avg Similarity | Top Similarity | Improvement vs MiniLM |
-|-------|--------------|----------------|----------------|---------------------|
-| **SafeAeroBERT** (NASA) | 768 | **0.6690** | **0.7531** | **+160.07%** |
-| MiniLM-L12 (General) | 384 | 0.2572 | 0.4916 | baseline |
-| MPNet (General) | 768 | 0.2397 | 0.4916 | -6.80% |
+| Rank | Model | Recall@10 | Recall@100 | Recall@1000 | MRR | Embedding Dim | Category |
+|------|-------|-----------|------------|-------------|-----|---------------|----------|
+| 1 | **BERT-base-cased** | 0.0550 | 0.5400 | 0.8100 | 0.0318 | 768 | Previous |
+| 2 | **MPNet-base-v2** | 0.0700 | 0.5300 | 0.8100 | 0.0499 | 768 | Proven |
+| 3 | **RoBERTa-base** | 0.0500 | 0.5100 | 0.8100 | 0.0325 | 768 | Previous |
+| 4 | **RoBERTa-large** | 0.0500 | 0.5050 | 0.8100 | 0.0293 | 1024 | Previous |
+| 5 | **GTE-base** | 0.0800 | 0.4950 | 0.8100 | 0.0577 | 768 | GTE |
+| 6 | **UAE-Large-V1** | 0.0800 | 0.4900 | 0.8100 | 0.0599 | 1024 | Advanced |
+| 7 | **E5-base** | 0.0900 | 0.4850 | 0.8100 | 0.0552 | 768 | Previous |
+| 8 | **MiniLM-L12-v2** | 0.0850 | 0.4850 | 0.8100 | 0.0585 | 384 | Fast |
+| 9 | **BGE-large-en-v1.5** | 0.0750 | 0.4800 | 0.8100 | 0.0598 | 1024 | BGE |
+| 10 | **MiniLM-L6-v2** | 0.0700 | 0.4800 | 0.8100 | 0.0502 | 384 | Fast |
+| 11 | **BGE-base-en-v1.5** | 0.0850 | 0.4750 | 0.8100 | 0.0556 | 768 | BGE |
+| 12 | **SafeAeroBERT** | 0.0650 | 0.4700 | 0.8100 | 0.0282 | 768 | Aviation-Specific |
+| 13 | **E5-large** | 0.0700 | 0.4700 | 0.8100 | 0.0551 | 1024 | Previous |
+| 14 | **GTE-large** | 0.0800 | 0.4700 | 0.8100 | 0.0548 | 1024 | GTE |
+| 15 | **Instructor-large** | 0.0750 | 0.4700 | 0.8100 | 0.0519 | 768 | Instruction-based |
+| 16 | **Instructor-XL** | 0.0650 | 0.4550 | 0.8100 | 0.0564 | 768 | Instruction-based |
+
+---
+
+## Metrics Explained
+
+- **Recall@10**: Percentage of queries where the relevant document appears in the top 10 results
+- **Recall@100**: Percentage of queries where the relevant document appears in the top 100 results
+- **Recall@1000**: Percentage of queries where the relevant document appears in the top 1000 results
+- **MRR (Mean Reciprocal Rank)**: Average of 1/rank for the first relevant document (higher = relevant docs ranked higher)
+
+---
+
+## Model Categories
+
+
+### Advanced
+
+- **UAE-Large-V1**: R@100=0.4900, MRR=0.0599
+
+### Aviation-Specific
+
+- **SafeAeroBERT**: R@100=0.4700, MRR=0.0282
+
+### BGE
+
+- **BGE-large-en-v1.5**: R@100=0.4800, MRR=0.0598
+- **BGE-base-en-v1.5**: R@100=0.4750, MRR=0.0556
+
+### Fast
+
+- **MiniLM-L12-v2**: R@100=0.4850, MRR=0.0585
+- **MiniLM-L6-v2**: R@100=0.4800, MRR=0.0502
+
+### GTE
+
+- **GTE-base**: R@100=0.4950, MRR=0.0577
+- **GTE-large**: R@100=0.4700, MRR=0.0548
+
+### Instruction-based
+
+- **Instructor-large**: R@100=0.4700, MRR=0.0519
+- **Instructor-XL**: R@100=0.4550, MRR=0.0564
+
+### Previous
+
+- **BERT-base-cased**: R@100=0.5400, MRR=0.0318
+- **RoBERTa-base**: R@100=0.5100, MRR=0.0325
+- **RoBERTa-large**: R@100=0.5050, MRR=0.0293
+- **E5-base**: R@100=0.4850, MRR=0.0552
+- **E5-large**: R@100=0.4700, MRR=0.0551
+
+### Proven
+
+- **MPNet-base-v2**: R@100=0.5300, MRR=0.0499
 
 ---
 
 ## Key Findings
 
-### 1. SafeAeroBERT Significantly Outperforms General Models
-- **160% improvement** in average similarity over MiniLM-L12
-- **179% improvement** over MPNet
-- Clearly demonstrates the value of domain-specific pre-training
 
-### 2. Aviation Context Understanding
-SafeAeroBERT was pre-trained on:
-- ASRS (Aviation Safety Reporting System) data
-- NTSB (National Transportation Safety Board) reports
-- Aviation-specific terminology and scenarios
+1. **Best Overall Model**: BERT-base-cased
+   - Achieved 54.0% Recall@100
+   - Category: Previous
+   - Embedding Dimension: 768
 
-This specialized training enables better understanding of:
-- Aviation jargon ("TCAS", "crossing restriction", "loss of separation")
-- Safety-critical scenarios
-- Operational contexts
 
-### 3. Trade-offs
+2. **Category Performance**:
+   - Proven: 0.5300 average Recall@100
+   - Previous: 0.5020 average Recall@100
+   - Advanced: 0.4900 average Recall@100
+   - GTE: 0.4825 average Recall@100
+   - Fast: 0.4825 average Recall@100
+   - BGE: 0.4775 average Recall@100
+   - Aviation-Specific: 0.4700 average Recall@100
+   - Instruction-based: 0.4625 average Recall@100
 
-**SafeAeroBERT Pros:**
-- 160% better semantic understanding of aviation text
-- Domain-specific pre-training
-- Better recall for safety-critical incidents
-
-**SafeAeroBERT Cons:**
-- Larger embeddings (768-dim vs 384-dim)
-- ~2x index size (~350MB vs ~180MB)
-- Slightly slower encoding (~25 min vs ~15 min for full index)
-
-**Decision**: The performance gain justifies the additional resources.
+3. **Aviation-Specific Model Performance**:
+   - SafeAeroBERT ranked #12 with 0.4700 Recall@100
+   - Despite aviation-specific training, general-purpose models performed better
 
 ---
 
-## Comprehensive Model Comparison: Cased vs Uncased vs Domain-Specific
-### Test Setup
-- **Queries**: 6 aviation queries with case-sensitive acronyms:
-  - "ATC clearance not received before departure"
-  - "TCAS Resolution Advisory required immediate climb"
-  - "IFR flight plan filed but departed VFR conditions"
-  - "MEL item not properly documented in logbook"
-  - "ATIS information Charlie was incorrect for winds"
-  - "FMS programming error during SID departure"
-- **Documents**: 20 ASRS narratives containing aviation acronyms
-- **Metric**: Cosine similarity (normalized embeddings)
+## Recommendation
 
-### Complete Results - All 4 Models Tested
+Based on this evaluation:
 
-| Rank | Model | Avg Similarity | Improvement | Embedding Dim | Cased? | Domain-Specific? |
-|------|-------|----------------|-------------|---------------|---------|------------------|
-| 1 | **BERT-base-cased** | **0.7847** | **+222%** | 768 | Yes | No |
-| 2 | **SafeAeroBERT** | **0.7228** | **+197%** | 768 | No | Yes (Aviation) |
-| 3 | BERT-base-uncased | 0.6443 | +164% | 768 | No | No |
-| 4 | MiniLM-L12 | 0.2437 | baseline | 384 | No | No |
+**For Production Use:**
 
-### Critical Comparison: Cased vs Domain-Specific
+1. **Primary Model**: BERT-base-cased
+   - Best Recall@100: 0.5400
+   - Model ID: `bert-base-cased`
 
-**1. Impact of Case Sensitivity (same architecture, different tokenization):**
-```
-BERT-base-cased:   0.7847
-BERT-base-uncased: 0.6443
-Difference:        +21.8%
-```
-**Case preservation helps significantly** with aviation acronyms (+21.8% improvement)
-
-**2. Impact of Domain-Specific Training (both uncased):**
-```
-SafeAeroBERT (uncased, aviation): 0.7228
-BERT-base-uncased (general):      0.6443
-Difference:                        +12.2%
-```
-**Aviation-specific training helps** even without case sensitivity (+12.2% improvement)
-
-**3. The Key Trade-off (cased general vs uncased aviation):**
-```
-BERT-base-cased (general):        0.7847  (BEST)
-SafeAeroBERT (uncased, aviation): 0.7228  (2nd, -7.9%)
-```
-**Very close!** Only 7.9% difference
-
-### Key Findings
-
-1. **Case sensitivity matters for acronyms** (+21.8%)
-   - BERT-base-cased correctly preserves "ATC" vs "atc"
-   - Tokenizes: "ATC" → ["AT", "##C"] (preserved case)
-   - Helps disambiguate aviation-specific acronyms
-
-2. **Domain-specific training also matters** (+12.2%)
-   - SafeAeroBERT learned aviation context from ASRS/NTSB
-   - Understands "tcas advisory" = collision avoidance scenario
-   - Knows "ifr departure" = instrument flight rules context
-
-3. **Trade-off between case and domain knowledge**
-   - Best overall: BERT-base-cased (0.7847)
-   - Close second: SafeAeroBERT (0.7228, -7.9%)
-   - Both significantly beat generic uncased models
-
-4. **Real-world considerations**
-   - Test focused on acronym-heavy queries
-   - Real aviation queries include broader context
-   - SafeAeroBERT may excel on full narratives beyond just acronyms
-
-### Tokenization Comparison
-
-```python
-# BERT-base-cased (preserves case)
-tokenizer.tokenize("ATC") → ["AT", "##C"]
-tokenizer.tokenize("atc") → ["at", "##c"]
-
-# SafeAeroBERT & all uncased models (lowercases)
-tokenizer.tokenize("ATC") → ["at", "##c"]
-tokenizer.tokenize("atc") → ["at", "##c"]
-```
-Maybe Fine-tune BERT-base-cased on ASRS data to get **both** case sensitivity **and** domain knowledge.
+2. **Alternative**: MPNet-base-v2
+   - Recall@100: 0.5300
+   - Model ID: `sentence-transformers/all-mpnet-base-v2`
 
 ---
 
-## Appendix: Raw Test Output
+## Dataset Details
 
-### Test 1: Initial Model Comparison (Mixed Aviation Queries)
+- **Query Source**: rnapberkeley/asrs (Ronald's synthetic queries)
+- **Document Source**: elihoole/asrs-aviation-reports
+- **Total Validation Queries**: 7158
+- **Queries Used**: 200
+- **Documents in Index**: 162
+- **Evaluation Method**: Each query has 1 ground-truth relevant document (seed_doc_id)
 
-```
-General (MiniLM-L12):
-  Embedding dimension: 384
-  Avg similarity: 0.2572
-  Top similarity: 0.4916
+---
 
-General (MPNet):
-  Embedding dimension: 768
-  Avg similarity: 0.2397
-  Top similarity: 0.4916
-
-Aviation (SafeAeroBERT):
-  Embedding dimension: 768
-  Avg similarity: 0.6690
-  Top similarity: 0.7531
-```
-
-**Improvement:** (0.6690 - 0.2572) / 0.2572 = +160.07%
-
-### Test 2: Comprehensive Cased vs Uncased (Acronym-Heavy Queries)
-
-```
-BERT-base-cased (TRUE cased):
-  Embedding dimension: 768
-  Avg similarity: 0.7847
-  Max similarity: 0.8523
-  Tokenizes 'ATC' as: ['AT', '##C']
-
-SafeAeroBERT (uncased, aviation):
-  Embedding dimension: 768
-  Avg similarity: 0.7228
-  Max similarity: 0.8141
-  Tokenizes 'ATC' as: ['at', '##c']
-
-BERT-base-uncased (control):
-  Embedding dimension: 768
-  Avg similarity: 0.6443
-  Max similarity: 0.7642
-  Tokenizes 'ATC' as: ['at', '##c']
-
-MiniLM-L12 (uncased, baseline):
-  Embedding dimension: 384
-  Avg similarity: 0.2437
-  Max similarity: 0.5363
-  Tokenizes 'ATC' as: ['at', '##c']
-```
-
-**Key Calculations:**
-- Cased vs Uncased (same arch): (0.7847 - 0.6443) / 0.6443 = +21.8%
-- Domain-specific vs General (both uncased): (0.7228 - 0.6443) / 0.6443 = +12.2%
-- Cased vs SafeAeroBERT: (0.7847 - 0.7228) / 0.7228 = +8.6%
-
-```
+*Generated by comprehensive_model_evaluation.py*
