@@ -58,7 +58,8 @@ export const Results = () => {
         const start = page * pageLength;
         const end = start + pageLength;
         setCurrentPage(page);
-        highlight(allResults.slice(start, end));
+        const pageResults = [ ...allResults.slice(start, end) ];
+        highlight(pageResults);
     }
 
     // Highlight query terms in the text
