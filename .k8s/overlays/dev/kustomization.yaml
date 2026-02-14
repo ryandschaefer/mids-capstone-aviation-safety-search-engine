@@ -1,0 +1,21 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: aviation-safety
+resources:
+  - ./namespace.yaml
+  - ../../base
+
+patches:
+  - path: lb-service-frontend.yaml
+    target:
+      kind: Service
+      labelSelector: app=frontend-service
+  - path: lb-service-backend-main.yaml
+    target:
+      kind: Service
+      labelSelector: app=backend-main-service
+  - path: lb-service-backend-bm25.yaml
+    target:
+      kind: Service
+      labelSelector: app=backend-bm25-service

@@ -1,1 +1,2 @@
-export const BASE_ENDPOINT = "http://127.0.0.1:8000"
+// TODO: make this dynamic between dev and prod
+export const BASE_ENDPOINT = "http://localhost:8000";

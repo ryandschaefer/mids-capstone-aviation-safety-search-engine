@@ -4,7 +4,7 @@ import "primereact/resources/themes/lara-light-indigo/theme.css";
 import { useEffect, useState } from "react";
 import { Box, Button, Grid, Typography } from "@mui/material";
 import { MetadataFilters, SearchBar } from "../common";
-import { getBM25Data, getTestData } from "../../api";
+import { startSearch } from "../../api";
 import { displayColumns } from "../../utils";
 import { useNavigate } from "react-router-dom";
 import humanizeDuration from "humanize-duration";
@@ -36,7 +36,7 @@ export const Results = () => {
         if (query) {
             setLoading(true);
             const startQueryTime = performance.now();
-            getBM25Data(query)
+            startSearch(query)
                 .then(x => {
                     setAllResults(x);
                     setTotalResults(x.length);
@@ -53,7 +53,6 @@ export const Results = () => {
 
     // Function to collect a new page of results from API
     const onPage = (event) => {
-        console.log(event)
         const page = event.page;
         const start = page * pageLength;
         const end = start + pageLength;

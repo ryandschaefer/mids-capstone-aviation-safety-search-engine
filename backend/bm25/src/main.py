@@ -4,9 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.routes import search
 import os
 
-FRONTEND_URL = os.environ.get("FRONTEND_URL")
-print(FRONTEND_URL)
-FRONTEND_URL = None
+MAIN_DRIVER_URL = os.environ.get("MAIN_DRIVER_URL")
 
 # Initialize app
 app = FastAPI()
@@ -15,14 +13,14 @@ app = FastAPI()
 @app.get("/health")
 async def health():
     return {
-        "service": "main",
+        "service": "bm25",
         "time": datetime.now()
     }
 
 # Add CORS middleware to choose allowed origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[ FRONTEND_URL if FRONTEND_URL else "*" ],
+    allow_origins=[ MAIN_DRIVER_URL if MAIN_DRIVER_URL else "*" ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"]

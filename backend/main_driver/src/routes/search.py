@@ -1,0 +1,16 @@
+from fastapi.routing import APIRouter
+import src.controllers.search as controller
+import src.schemas.search as schemas
+
+# Initialize Fastapi router
+router = APIRouter(prefix = "/search")
+
+# Return the first 15 records as a test set
+@router.get("/test")
+async def get_test_data():
+    return await controller.get_test_data()
+
+# Run a search
+@router.post("")
+async def get_test_data(body: schemas.StartSearchInput):
+    return await controller.start_search(body.query)

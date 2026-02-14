@@ -1,0 +1,55 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-bm25-deployment
+  namespace: aviation-safety
+  labels:
+    app: backend-bm25-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend-bm25
+  template:
+    metadata:
+      labels:
+        app: backend-bm25
+    spec:
+      containers:
+        - name: backend-bm25-container
+          image: backend-bm25:latest
+          env:
+            - name: MAIN_DRIVER_URL
+              value: http://backend-main-service:8000
+          resources:
+            requests:
+              cpu: 200m
+              memory: 500Mi
+            limits:
+              cpu: 1000m
+              memory: 1000Mi
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8001
+          readinessProbe:
+            httpGet:
+              scheme: HTTP
+              path: /health
+              port: 8001
+            initialDelaySeconds: 1
+            periodSeconds: 60
+          livenessProbe:
+            httpGet:
+              scheme: HTTP
+              path: /health
+              port: 8001
+            initialDelaySeconds: 15
+            periodSeconds: 120
+          startupProbe:
+            httpGet:
+              scheme: HTTP
+              path: /health
+              port: 8001
+            failureThreshold: 30
+            periodSeconds: 10

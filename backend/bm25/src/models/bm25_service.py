@@ -98,15 +98,13 @@ class BM25Index:
 # =========================
 
 bm25 = None
-text_lookup = None
 
-def init(work, index_path="models/bm25_asrs_full.pkl.gz"):
+def init(index_path="src/models/bm25_asrs_full.pkl.gz"):
     """
     Initialize once at app startup.
     """
-    global bm25, text_lookup
+    global bm25
     bm25 = BM25Index.load(index_path)
-    text_lookup = {get_doc_id(r): get_text(r) for r in work}
 
 def search(query, top_k=10):
     """

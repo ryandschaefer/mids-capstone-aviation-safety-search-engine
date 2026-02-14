@@ -1,0 +1,59 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-main-deployment
+  namespace: aviation-safety
+  labels:
+    app: backend-main-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend-main
+  template:
+    metadata:
+      labels:
+        app: backend-main
+    spec:
+      containers:
+        - name: backend-main-container
+          image: backend-main:latest
+          env:
+            - name: FRONTEND_URL
+              value: http://frontend-service:80
+            - name: BM25_URL
+              value: http://backend-bm25-service:8001
+            - name: EMBEDDING_URL
+              value: http://backend-embedding-service:8002
+          resources:
+            requests:
+              cpu: 200m
+              memory: 500Mi
+            limits:
+              cpu: 1000m
+              memory: 1000Mi
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          readinessProbe:
+            httpGet:
+              scheme: HTTP
+              path: /health
+              port: 8000
+            initialDelaySeconds: 1
+            periodSeconds: 60
+          livenessProbe:
+            httpGet:
+              scheme: HTTP
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 120
+          startupProbe:
+            httpGet:
+              scheme: HTTP
+              path: /health
+              port: 8000
+            failureThreshold: 30
+            periodSeconds: 10
