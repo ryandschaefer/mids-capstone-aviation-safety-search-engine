@@ -5,8 +5,6 @@ from src.routes import search
 import os
 
 FRONTEND_URL = os.environ.get("FRONTEND_URL")
-print(FRONTEND_URL)
-FRONTEND_URL = None
 
 # Initialize app
 app = FastAPI()

@@ -19,3 +19,7 @@ patches:
     target:
       kind: Service
       labelSelector: app=backend-bm25-service
+  - path: env-deployment-backend-main.yaml
+    target:
+      kind: Deployment
+      labelSelector: app=backend-main-deployment
