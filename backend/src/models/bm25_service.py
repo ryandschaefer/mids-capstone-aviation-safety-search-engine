@@ -5,6 +5,7 @@
 
 import gzip
 import pickle
+from pathlib import Path
 import math
 import heapq
 import re
@@ -100,15 +101,17 @@ class BM25Index:
 bm25 = None
 text_lookup = None
 
-def init(work, index_path="models/bm25_asrs_full.pkl.gz"):
+def init(work, index_path=None):
     """
     Initialize once at app startup.
     """
     global bm25, text_lookup
+    if index_path is None:
+        index_path = str(Path(__file__).parent / "bm25_asrs_full.pkl.gz")
     bm25 = BM25Index.load(index_path)
     text_lookup = {get_doc_id(r): get_text(r) for r in work}
 
-def search(query, top_k=10):
+def search(query, top_k=10, filters=None):
     """
     Search API for UI / FastAPI.
     """
@@ -119,12 +122,19 @@ def search(query, top_k=10):
     results = []
 
     for d_id, score in hits:
-        parent_id, chunk_j, *_ = bm25.meta[d_id]
+        parent_id, chunk_j, *rest = bm25.meta[d_id]
+        when = rest[0] if len(rest) > 0 else None
+        where = rest[1] if len(rest) > 1 else None
+        anomaly = rest[2] if len(rest) > 2 else None
         results.append({
-            "id": f"{parent_id}__chunk{chunk_j}",
+            "chunk_id": f"{parent_id}__chunk{chunk_j}",
             "score": float(score),
-            "parent_doc_id": parent_id,
+            "doc_int_id": int(d_id),
+            "parent_doc_id": str(parent_id),
             "chunk_j": int(chunk_j),
+            "when": when,
+            "where": where,
+            "anomaly": anomaly,
         })
 
     return results
