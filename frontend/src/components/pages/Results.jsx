@@ -4,7 +4,7 @@ import "primereact/resources/themes/lara-light-indigo/theme.css";
 import { useEffect, useState } from "react";
 import { Box, Button, Grid, Typography } from "@mui/material";
 import { MetadataFilters, SearchBar } from "../common";
-import { getBM25Data, getTestData } from "../../api";
+import { getBM25Data, getSemanticData, getHybridData, getTestData } from "../../api";
 import { displayColumns } from "../../utils";
 import { useNavigate } from "react-router-dom";
 import humanizeDuration from "humanize-duration";
@@ -30,16 +30,25 @@ export const Results = () => {
     const [queryTime, setQueryTime] = useState(-1.0);
     const [queryTimeText, setQueryTimeText] = useState("");
 
+    // Expanded query returned by LLM
+    const [expandedQuery, setExpandedQuery] = useState(null);
+
     // Function to submit a new search query
     const onSubmit = () => {
         const query = localStorage.getItem("user-query");
         if (query) {
             setLoading(true);
+            setExpandedQuery(null);
             const startQueryTime = performance.now();
-            getBM25Data(query)
+            getHybridData(query, true)
                 .then(x => {
-                    setAllResults(x);
-                    setTotalResults(x.length);
+                    // Response: { original_query, expanded_query, results }
+                    const results = x.results || x;
+                    setAllResults(results);
+                    setTotalResults(results.length);
+                    if (x.expanded_query) {
+                        setExpandedQuery(x.expanded_query);
+                    }
                 })
                 .finally(x => {
                     setLoading(false);
@@ -191,6 +200,14 @@ export const Results = () => {
                             >
                                 { totalResults } results for "{ userQuery }" found in { queryTimeText }
                             </Typography>
+                            {expandedQuery && (
+                                <Typography
+                                    variant="body2"
+                                    sx={{ mt: 0.5, color: "text.secondary", fontStyle: "italic" }}
+                                >
+                                    Expanded query: { expandedQuery }
+                                </Typography>
+                            )}
                             <DataTable
                                 value={searchResults}
                                 scrollable

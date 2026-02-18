@@ -36,3 +36,33 @@ export const getBM25Data = async(query) => {
 
     return res.data;
 }
+
+export const getSemanticData = async(query, expand = true) => {
+    const endpoint = `${ GROUP_ENDPOINT }/semantic`;
+    const config = {
+        params: { query, expand }
+    }
+    const res = await axios.get(endpoint, config);
+
+    if (res.status !== 200) {
+        console.error(`API request "GET ${ endpoint }" failed with status code ${ res.status }`);
+        throw new Error(res.statusText);
+    }
+
+    return res.data;
+}
+
+export const getHybridData = async(query, expand = true, alpha = null) => {
+    const endpoint = `${ GROUP_ENDPOINT }/hybrid`;
+    const config = {
+        params: { query, expand, ...(alpha !== null && { alpha }) }
+    }
+    const res = await axios.get(endpoint, config);
+
+    if (res.status !== 200) {
+        console.error(`API request "GET ${ endpoint }" failed with status code ${ res.status }`);
+        throw new Error(res.statusText);
+    }
+
+    return res.data;
+}
