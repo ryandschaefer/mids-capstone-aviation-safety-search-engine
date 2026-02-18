@@ -21,12 +21,12 @@ def search_bm25(query: str, top_k: int = 50):
 
 # Semantic search endpoint
 @router.get("/semantic")
-def search_semantic(query: str, top_k: int = 50):
-    return controller.get_semantic_data(query, top_k)
+def search_semantic(query: str, top_k: int = 50, expand: bool = None):
+    return controller.get_semantic_data(query, top_k, expand=expand)
 
 # Hybrid search endpoint (BM25 + Semantic)
 @router.get("/hybrid")
-def search_hybrid(query: str, top_k: int = 50, alpha: float = None):
+def search_hybrid(query: str, top_k: int = 50, alpha: float = None, expand: bool = None):
     """
     Hybrid search combining BM25 and semantic retrieval.
 
@@ -35,8 +35,9 @@ def search_hybrid(query: str, top_k: int = 50, alpha: float = None):
         top_k: Number of results to return (default: 50)
         alpha: BM25 weight, 0-1 (default: 0.5 from config)
                0 = semantic only, 1 = BM25 only
+        expand: Use LLM to expand query with aviation terminology (default: use global config)
 
     Returns:
         List of search results with hybrid scores
     """
-    return controller.get_hybrid_data(query, top_k, alpha)
+    return controller.get_hybrid_data(query, top_k, alpha, expand=expand)
