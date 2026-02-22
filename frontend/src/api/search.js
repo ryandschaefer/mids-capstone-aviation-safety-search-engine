@@ -17,10 +17,10 @@ export const getTestData = async() => {
     return res.data;
 }
 
-export const startSearch = async(query) => {
+export const startSearch = async(query, mode = "bm25") => {
     const endpoint = `${ GROUP_ENDPOINT }`;
     // Send API call
-    const res = await axios.post(endpoint, { query });
+    const res = await axios.post(endpoint, { query, mode });
 
     // Handle error
     if (res.status !== 200) {

@@ -121,7 +121,7 @@ def search(query, top_k=10):
         results.append({
             "id": f"{parent_id}__chunk{chunk_j}",
             "score": float(score),
-            "parent_doc_id": parent_id,
+            "doc_id": parent_id,
             "chunk_j": int(chunk_j),
         })
 

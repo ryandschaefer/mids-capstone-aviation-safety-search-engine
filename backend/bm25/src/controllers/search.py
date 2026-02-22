@@ -1,14 +1,23 @@
 import src.models.bm25_service as bm25
 import polars as pl
+import time
 
 # Load BM25 index
 bm25.init()
 
 async def get_bm25_data(query: str, top_k: int = 50):
+    start = time.time()
     # Search with BM25
     df_bm25 = pl.DataFrame(bm25.search(query, top_k)) \
-        .select(["score", "parent_doc_id"]) \
+        .select(["score", "doc_id"]) \
         .sort("score", descending=True) \
-        .unique("parent_doc_id", keep = "first")
+        .unique("doc_id", keep = "first")
     # Return the results
-    return df_bm25.to_dicts()
+    data = df_bm25.to_dicts()
+    results = {
+        "data": data,
+        "time": time.time() - start
+    }
+    print(results)
+    
+    return results

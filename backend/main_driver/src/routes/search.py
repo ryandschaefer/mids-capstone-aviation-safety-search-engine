@@ -12,5 +12,5 @@ async def get_test_data():
 
 # Run a search
 @router.post("")
-async def get_test_data(body: schemas.StartSearchInput):
-    return await controller.start_search(body.query)
+async def get_test_data(body: schemas.StartSearchInput) -> schemas.StartSearchOutput:
+    return await controller.start_search(body.query, body.top_k, body.mode)

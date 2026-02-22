@@ -38,8 +38,9 @@ export const Results = () => {
             const startQueryTime = performance.now();
             startSearch(query)
                 .then(x => {
-                    setAllResults(x);
-                    setTotalResults(x.length);
+                    setAllResults(x.data);
+                    setTotalResults(x.data.length);
+                    console.log(x.times)
                 })
                 .finally(x => {
                     setLoading(false);
