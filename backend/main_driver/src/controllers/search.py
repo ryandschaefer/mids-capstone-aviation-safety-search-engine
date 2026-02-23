@@ -68,7 +68,7 @@ async def start_search(query: str, top_k: int, mode: str):
                 on = "doc_id", how = "full", validate = "1:1"
             ) \
             .with_columns(
-                score = (1 + pl.col("bm25_score")) * (1 + pl.col("embedding_score"))
+                score = (1 + pl.col("bm25_score").fill_null(0.0)) * (1 + pl.col("embedding_score").fill_null(0.0))
             )
     else:
         # Use bm25 or embedding results
