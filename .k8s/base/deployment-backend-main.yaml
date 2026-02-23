@@ -19,13 +19,14 @@ spec:
       containers:
         - name: backend-main-container
           image: backend-main:latest
+          imagePullPolicy: Never
           env:
             - name: FRONTEND_URL
               value: http://frontend-service:80
             - name: BM25_URL
               value: http://backend-bm25-service:8001
             - name: EMBEDDING_URL
-              value: http://backend-embedding-service:8002
+              value: http://backend-embeddings-service:8002
           resources:
             requests:
               cpu: 200m
@@ -33,7 +34,6 @@ spec:
             limits:
               cpu: 1000m
               memory: 1000Mi
-          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
           readinessProbe:

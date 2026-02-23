@@ -1,0 +1,16 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-embeddings-service
+  namespace: aviation-safety
+  labels:
+    app: backend-embeddings-service
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8002
+      targetPort: 8002
+      protocol: TCP
+  selector:
+    app: backend-embeddings

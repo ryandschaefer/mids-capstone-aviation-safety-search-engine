@@ -19,6 +19,10 @@ patches:
     target:
       kind: Service
       labelSelector: app=backend-bm25-service
+  - path: lb-service-backend-embeddings.yaml
+    target:
+      kind: Service
+      labelSelector: app=backend-embeddings-service
   - path: env-deployment-backend-main.yaml
     target:
       kind: Deployment

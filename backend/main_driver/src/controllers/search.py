@@ -8,7 +8,10 @@ import time
 
 # Load HuggingFace dataset
 ds = load_dataset("elihoole/asrs-aviation-reports")
-df: pl.DataFrame = ds["train"].to_polars()
+df: pl.DataFrame = pl.concat(
+    [ ds[split].to_polars() for split in ["train", "validation", "test"] ], 
+    how = "diagonal_relaxed"
+)
 
 async def get_test_data():
     # Return the top 15 records
@@ -18,6 +21,7 @@ async def start_search(query: str, top_k: int, mode: str):
     start = time.time()
     service_names: list[str] = []
     service_list = []
+    times = defaultdict(float)
     # Determine which retrieval mode is being used
     if mode == "bm25":
         service_names.extend([
@@ -45,22 +49,31 @@ async def start_search(query: str, top_k: int, mode: str):
         
     # Wait for all services to execute
     service_results: list[schemas.ServiceOutput] = await asyncio.gather(*service_list)
+    times["retrieval"] = time.time() - start
     
     synthesis_start = time.time()
     # Extract service outputs
     outputs = defaultdict(pl.DataFrame)
-    times = defaultdict(float)
     for name, results in zip(service_names, service_results):
         outputs[name] = pl.DataFrame(results["data"])
         times[name] = results["time"]
         
     if mode == "hybrid":
         # Handle synthesizing hybrid results
-        df_retrieved = pl.DataFrame()
+        df_retrieved = outputs["bm25"] \
+            .rename({ "score": "bm25_score" }) \
+            .join(
+                outputs["embeddings"] \
+                    .rename({ "score": "embedding_score" }),
+                on = "doc_id", how = "full", validate = "1:1"
+            ) \
+            .with_columns(
+                score = (1 + pl.col("bm25_score")) * (1 + pl.col("embedding_score"))
+            )
     else:
         # Use bm25 or embedding results
         df_retrieved = pl.concat(
-            [ outputs["bm25"], outputs["embeddings"]],
+            [ outputs["bm25"], outputs["embeddings"] ],
             how = "diagonal_relaxed"
         )
     
@@ -76,7 +89,7 @@ async def start_search(query: str, top_k: int, mode: str):
         
     # Return the results
     data = df_results.to_dicts()
-    times["total"] = time.time() - start
+    times["api_total"] = time.time() - start
     return {
         "data": data,
         "times": times

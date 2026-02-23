@@ -2,27 +2,35 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: backend-bm25-deployment
+  name: backend-embeddings-deployment
   namespace: aviation-safety
   labels:
-    app: backend-bm25-deployment
+    app: backend-embeddings-deployment
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: backend-bm25
+      app: backend-embeddings
   template:
     metadata:
       labels:
-        app: backend-bm25
+        app: backend-embeddings
     spec:
       containers:
-        - name: backend-bm25-container
-          image: backend-bm25:latest
+        - name: backend-embeddings-container
+          image: backend-embeddings:latest
           imagePullPolicy: Never
           env:
             - name: MAIN_DRIVER_URL
               value: http://backend-main-service:8000
+            - name: QUERY_EMBEDDING_MODEL
+              value: sentence-transformers/all-MiniLM-L12-v2
+            - name: QDRANT_HOST
+              value: host.minikube.internal
+            - name: QDRANT_PORT
+              value: "6333"
+            - name: QDRANT_COLLECTION
+              value: aviation-safety
           resources:
             requests:
               cpu: 200m
@@ -31,25 +39,25 @@ spec:
               cpu: 1000m
               memory: 1000Mi
           ports:
-            - containerPort: 8001
+            - containerPort: 8002
           readinessProbe:
             httpGet:
               scheme: HTTP
               path: /health
-              port: 8001
+              port: 8002
             initialDelaySeconds: 1
             periodSeconds: 60
           livenessProbe:
             httpGet:
               scheme: HTTP
               path: /health
-              port: 8001
+              port: 8002
             initialDelaySeconds: 15
             periodSeconds: 120
           startupProbe:
             httpGet:
               scheme: HTTP
               path: /health
-              port: 8001
+              port: 8002
             failureThreshold: 30
             periodSeconds: 10

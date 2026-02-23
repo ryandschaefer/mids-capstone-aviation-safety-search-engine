@@ -8,7 +8,7 @@ http_client = httpx.AsyncClient(timeout=10.0)
 
 # Get service endpoints from env
 BM25_ENDPOINT = os.environ.get("BM25_URL")
-EMBEDDING_ENDPOINT = os.environ.get("EMBEDDINGS_URL")
+EMBEDDING_ENDPOINT = os.environ.get("EMBEDDING_URL")
 
 # Get BM25 results from service
 async def get_bm25_results(query: str, top_k: int = 50) -> ServiceOutput:
@@ -34,6 +34,7 @@ async def get_embedding_results(query: str, top_k: int = 50) -> ServiceOutput:
         "query": query,
         "top_k": top_k
     }
+    print(EMBEDDING_ENDPOINT)
     
     response = await http_client.get(f"{ EMBEDDING_ENDPOINT }/search", params = query_params)
     

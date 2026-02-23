@@ -18,6 +18,5 @@ async def get_bm25_data(query: str, top_k: int = 50):
         "data": data,
         "time": time.time() - start
     }
-    print(results)
     
     return results

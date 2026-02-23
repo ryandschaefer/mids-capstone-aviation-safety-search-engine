@@ -6,6 +6,8 @@ resources:
   - deployment-frontend.yaml
   - deployment-backend-main.yaml
   - deployment-backend-bm25.yaml
+  - deployment-backend-embeddings.yaml
   - service-frontend.yaml
   - service-backend-main.yaml
   - service-backend-bm25.yaml
+  - service-backend-embeddings.yaml

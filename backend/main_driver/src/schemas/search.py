@@ -9,9 +9,7 @@ class StartSearchInput(BaseModel):
     @classmethod
     def is_valid_mode(cls, value: str) -> str:
         valid_modes = [
-            "bm25",
-            # "embeddings",
-            # "hybrid"
+            "bm25", "embeddings", "hybrid"
         ]
         if value in valid_modes:
             return value
