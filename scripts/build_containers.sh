@@ -12,7 +12,7 @@ kubectl delete --all service
 # Clear out existing docker images
 docker system prune -f
 
-# # Build frontend
+# Build frontend
 cd frontend
 docker build --no-cache -t frontend . 
 
@@ -20,7 +20,7 @@ docker build --no-cache -t frontend .
 cd ../backend/main_driver
 docker build --no-cache -t backend-main . 
 
-# # Build backend BM25
+# Build backend BM25
 cd ../bm25
 docker build --no-cache -t backend-bm25 . 
 
