@@ -77,6 +77,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# scp -r /Users/ronald/Desktop/search-engine/llm_query_cache.jsonl rnap@login.rc.ucmerced.edu:/home/rnap/capstone/
-# scp -r /Users/ronald/Desktop/search-engine/batch_all/seed_manifest.json rnap@login.rc.ucmerced.edu:/home/rnap/capstone/
