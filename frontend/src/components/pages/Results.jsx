@@ -2,46 +2,109 @@ import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
 import "primereact/resources/themes/lara-light-indigo/theme.css";
 import { useEffect, useState } from "react";
-import { Box, Button, Grid, Typography } from "@mui/material";
+import { Box, Button, Grid, IconButton, Tooltip, Typography } from "@mui/material";
+import ThumbUpOffAltIcon from "@mui/icons-material/ThumbUpOffAlt";
+import ThumbDownOffAltIcon from "@mui/icons-material/ThumbDownOffAlt";
+import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import { MetadataFilters, SearchBar } from "../common";
-import { getBM25Data, getTestData } from "../../api";
+import { getBM25Data, submitFeedback } from "../../api";
 import { displayColumns } from "../../utils";
 import { useNavigate } from "react-router-dom";
 import humanizeDuration from "humanize-duration";
-import Highlighter from "react-highlight-words";
+
+const normalize = (s) => (s || "").replace(/\s+/g, " ").trim();
+
+// Map start/end in normalized string back to original text character positions
+function normalizedToOriginalPositions(text, normStart, normEnd) {
+    let ni = 0;
+    let inSpace = false;
+    let start = -1;
+    let end = -1;
+    for (let i = 0; i < text.length; i++) {
+        if (/\s/.test(text[i])) {
+            if (!inSpace) { inSpace = true; ni++; }
+        } else {
+            inSpace = false;
+            ni++;
+        }
+        if (start === -1 && ni >= normStart) start = i;
+        if (end === -1 && ni >= normEnd) { end = i + 1; break; }
+    }
+    if (end === -1) end = text.length;
+    return { start: start < 0 ? 0 : start, end };
+}
+
+// Escape for regex (simple)
+function escapeRe(s) {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Split by query terms and wrap matches in <mark>
+function highlightQueryTermsSimple(segment, query) {
+    if (!segment || !query || !String(query).trim()) return segment;
+    const terms = String(query).trim().split(/\s+/).filter((w) => w.length > 0);
+    if (terms.length === 0) return segment;
+    const re = new RegExp(`(${terms.map(escapeRe).join("|")})`, "gi");
+    const parts = segment.split(re);
+    return parts.map((p, i) => (i % 2 === 1 ? <mark key={i} style={{ backgroundColor: "rgba(255, 193, 7, 0.5)", padding: "0 1px" }}>{p}</mark> : p));
+}
+
+// Hybrid: chunk gets light background; query terms get highlight (mark)
+function NarrativeWithHighlightAndChunk({ narrative, snippet, query }) {
+    const text = narrative == null ? "" : String(narrative);
+    if (!text) return "";
+    const nText = normalize(text);
+    const nSnippet = (snippet && normalize(snippet)) || "";
+    const idx = nSnippet ? nText.toLowerCase().indexOf(nSnippet.toLowerCase()) : -1;
+    const hasChunk = idx >= 0;
+    const pos = hasChunk ? normalizedToOriginalPositions(text, idx, idx + nSnippet.length) : { start: 0, end: 0 };
+    const beforeChunk = text.slice(0, pos.start);
+    const chunkText = hasChunk ? text.slice(pos.start, pos.end) : "";
+    const afterChunk = hasChunk ? text.slice(pos.end) : text;
+    return (
+        <>
+            {highlightQueryTermsSimple(beforeChunk, query)}
+            {chunkText ? (
+                <span style={{ backgroundColor: "rgba(255, 235, 59, 0.25)", fontWeight: 600 }}>
+                    {highlightQueryTermsSimple(chunkText, query)}
+                </span>
+            ) : null}
+            {highlightQueryTermsSimple(afterChunk, query)}
+        </>
+    );
+}
 
 export const Results = () => {
     const navigate = useNavigate();
 
-    // Binary if currently waiting on API call
     const [loading, setLoading] = useState(false);
-    // Store search results
     const [searchResults, setSearchResults] = useState([]);
-    // Store all records - REMOVE THIS
     const [allResults, setAllResults] = useState([]);
-    // Total number of results for search
     const [totalResults, setTotalResults] = useState(-1);
-    // Primereact table parameters
     const [currentPage, setCurrentPage] = useState(1);
     const [pageLength, setPageLength] = useState(10);
-    // Query for the current search results
     const [userQuery, setUserQuery] = useState("");
-    // Elapsed time to run query
     const [queryTime, setQueryTime] = useState(-1.0);
     const [queryTimeText, setQueryTimeText] = useState("");
+    const [filters, setFilters] = useState({ when_prefix: "", where_contains: "", anomaly_contains: "" });
+    const [feedbackSent, setFeedbackSent] = useState({}); // { `${docId}`: true|false } so we can show "Thanks"
 
-    // Function to submit a new search query
     const onSubmit = () => {
         const query = localStorage.getItem("user-query");
         if (query) {
             setLoading(true);
             const startQueryTime = performance.now();
-            getBM25Data(query)
-                .then(x => {
+            const filterParams = {};
+            if (filters.when_prefix) filterParams.when_prefix = filters.when_prefix;
+            if (filters.where_contains) filterParams.where_contains = filters.where_contains;
+            if (filters.anomaly_contains) filterParams.anomaly_contains = filters.anomaly_contains;
+            getBM25Data(query, filterParams)
+                .then((x) => {
                     setAllResults(x);
                     setTotalResults(x.length);
+                    setSearchResults(x.slice(0, pageLength));
                 })
-                .finally(x => {
+                .finally(() => {
                     setLoading(false);
                     setUserQuery(query);
                     setQueryTime(performance.now() - startQueryTime);
@@ -49,56 +112,24 @@ export const Results = () => {
         } else {
             navigate("/");
         }
-    }
+    };
 
-    // Function to collect a new page of results from API
     const onPage = (event) => {
-        console.log(event)
         const page = event.page;
         const start = page * pageLength;
         const end = start + pageLength;
         setCurrentPage(page);
-        highlight(allResults.slice(start, end));
-    }
-
-    // Highlight query terms in the text
-    const highlight = (results) => {
-        // Narrative column
-        const col = "Report 1_Narrative";
-        // Tokenize search query
-        const terms = userQuery.split(" ");
-
-        // Iterate through results on the current page
-        results = results.map(row => {
-            // Clean narrative text
-            if (!row[col]) {
-                row[col] = "";
-            } else if (typeof row[col] !== "string") {
-                row[col] = row[col].toString();
-            }
-
-            // Highlight search terms in the narrative
-            row[col] = (
-                <Highlighter
-                    searchWords={terms}
-                    textToHighlight={row[col]}
-                    autoEscape={false}
-                />
-            )
-            return row;
-        });
-        setSearchResults(results);
-    }
+        setSearchResults(allResults.slice(start, end));
+    };
 
     // Load initial results
     useEffect(() => {
         onSubmit();
     }, []);
 
-    // Set to first page when total results changes
     useEffect(() => {
-        setCurrentPage(1);
-        onPage({ page: 0 });
+        setCurrentPage(0);
+        if (allResults.length) setSearchResults(allResults.slice(0, pageLength));
     }, [userQuery, totalResults]);
 
     // Update query time text every time query time updates
@@ -125,18 +156,11 @@ export const Results = () => {
                     mt: "5dvh",
                 }}
             >
-                {/* Home button */}
-                <Grid size = {1}>
-                    <Box
-                        sx = {{
-                            textAlign: "center",
-                        }}
-                    >
-                        <Button
-                            onClick = {() => navigate("/")}
-                        >
-                            Aviation Safety Search
-                        </Button>
+                {/* Home + About */}
+                <Grid size={1}>
+                    <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", justifyContent: "center" }}>
+                        <Button onClick={() => navigate("/")}>Home</Button>
+                        <Button onClick={() => navigate("/about")}>About</Button>
                     </Box>
                 </Grid>
 
@@ -166,6 +190,9 @@ export const Results = () => {
                     >
                         <MetadataFilters
                             disabled={loading}
+                            filters={filters}
+                            onFiltersChange={setFilters}
+                            onApply={onSubmit}
                         />
                     </Box>
                 </Grid>
@@ -186,11 +213,40 @@ export const Results = () => {
                     {/* Results table once search is complete */}
                     {!loading && (
                         <Box>
-                            <Typography
-                                variant="p"
-                            >
-                                { totalResults } results for "{ userQuery }" found in { queryTimeText }
-                            </Typography>
+                            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 1, mb: 1 }}>
+                                <Typography variant="body1">
+                                    {totalResults >= 0
+                                        ? totalResults === 0
+                                            ? `No results for "${userQuery}". Try different keywords or clear filters.`
+                                            : `${totalResults} result${totalResults !== 1 ? "s" : ""} for "${userQuery}" in ${queryTimeText}`
+                                        : ""}
+                                </Typography>
+                                {allResults.length > 0 && (
+                                    <Button
+                                        size="small"
+                                        variant="outlined"
+                                        startIcon={<FileDownloadIcon />}
+                                        onClick={() => {
+                                            const headers = displayColumns.map((c) => c.name);
+                                            const escape = (v) => {
+                                                const s = v == null ? "" : String(v);
+                                                return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
+                                            };
+                                            const rows = allResults.map((r) => displayColumns.map((c) => escape(r[c.id])).join(","));
+                                            const csv = [headers.join(","), ...rows].join("\n");
+                                            const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                                            const url = URL.createObjectURL(blob);
+                                            const a = document.createElement("a");
+                                            a.href = url;
+                                            a.download = `asrs-results-${userQuery.replace(/\s+/g, "-").slice(0, 30)}.csv`;
+                                            a.click();
+                                            URL.revokeObjectURL(url);
+                                        }}
+                                    >
+                                        Export CSV
+                                    </Button>
+                                )}
+                            </Box>
                             <DataTable
                                 value={searchResults}
                                 scrollable
@@ -207,6 +263,42 @@ export const Results = () => {
                                 paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
                                 currentPageReportTemplate="Showing {first} to {last} of {totalRecords} entries"
                             >
+                                {/* Relevance feedback column */}
+                                <Column
+                                    key="feedback"
+                                    header="Relevant?"
+                                    body={(record) => {
+                                        const docId = record.acn_num_ACN ?? record.parent_doc_id ?? "";
+                                        const sent = feedbackSent[docId];
+                                        const handleFeedback = (relevant) => {
+                                            if (!userQuery || !docId) return;
+                                            submitFeedback(userQuery, String(docId), relevant)
+                                                .then(() => setFeedbackSent((prev) => ({ ...prev, [docId]: relevant })))
+                                                .catch(() => {});
+                                        };
+                                        return (
+                                            <Box sx={{ display: "flex", gap: 0.5, alignItems: "center" }}>
+                                                {sent === true && <Typography variant="caption" color="success.main">Thanks</Typography>}
+                                                {sent === false && <Typography variant="caption" color="text.secondary">Recorded</Typography>}
+                                                {sent === undefined && (
+                                                    <>
+                                                        <Tooltip title="Relevant">
+                                                            <IconButton size="small" onClick={() => handleFeedback(true)} aria-label="Relevant">
+                                                                <ThumbUpOffAltIcon fontSize="small" />
+                                                            </IconButton>
+                                                        </Tooltip>
+                                                        <Tooltip title="Not relevant">
+                                                            <IconButton size="small" onClick={() => handleFeedback(false)} aria-label="Not relevant">
+                                                                <ThumbDownOffAltIcon fontSize="small" />
+                                                            </IconButton>
+                                                        </Tooltip>
+                                                    </>
+                                                )}
+                                            </Box>
+                                        );
+                                    }}
+                                    style={{ minWidth: "100px" }}
+                                />
                                 {/* Display selected columns */}
                                 {displayColumns.map((col, i) => {
                                     const id = col["id"]
@@ -247,7 +339,9 @@ export const Results = () => {
                                                     }
                                                 }}
                                             >
-                                                { record[id] }
+                                                { id === "Report 1_Narrative"
+                                                    ? <NarrativeWithHighlightAndChunk narrative={record[id]} snippet={record.snippet} query={userQuery} />
+                                                    : record[id] }
                                             </Box>
                                         }}
                                     />

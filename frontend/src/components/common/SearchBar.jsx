@@ -1,16 +1,20 @@
 import { useEffect, useState } from "react";
-import { InputAdornment, TextField } from "@mui/material";
+import { Box, Button, InputAdornment, TextField } from "@mui/material";
 import { Search as SearchIcon } from "@mui/icons-material";
 
 export const SearchBar = ({ disabled, onSubmit, initQuery }) => {
     const [userQuery, setUserQuery] = useState("");
 
+    const handleSubmit = () => {
+        localStorage.setItem("user-query", userQuery);
+        onSubmit();
+    };
+
     const onEnter = (event) => {
-        if (event.key == "Enter") {
-            localStorage.setItem("user-query", userQuery)
-            onSubmit();
+        if (event.key === "Enter") {
+            handleSubmit();
         }
-    }
+    };
 
     useEffect(() => {
         if (initQuery) {
@@ -18,10 +22,10 @@ export const SearchBar = ({ disabled, onSubmit, initQuery }) => {
         }
     }, [initQuery]);
 
-    return <>
+    return <Box sx={{ display: "flex", gap: 1, alignItems: "stretch", width: "100%" }}>
         <TextField
             sx={{ 
-                width: { xs: "100%" },
+                flex: 1,
                 backgroundColor: 'white'
             }}
             id="searchTerm"
@@ -39,5 +43,13 @@ export const SearchBar = ({ disabled, onSubmit, initQuery }) => {
                 ),
             }}
         />
-    </>
+        <Button
+            variant="contained"
+            onClick={handleSubmit}
+            disabled={disabled}
+            sx={{ minWidth: 100 }}
+        >
+            Search
+        </Button>
+    </Box>
 }

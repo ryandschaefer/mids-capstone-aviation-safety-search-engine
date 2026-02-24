@@ -100,7 +100,7 @@ class BM25Index:
 bm25 = None
 text_lookup = None
 
-def init(work, index_path="models/bm25_asrs_full.pkl.gz"):
+def init(work, index_path="src/models/bm25_asrs_full.pkl.gz"):
     """
     Initialize once at app startup.
     """
@@ -108,9 +108,25 @@ def init(work, index_path="models/bm25_asrs_full.pkl.gz"):
     bm25 = BM25Index.load(index_path)
     text_lookup = {get_doc_id(r): get_text(r) for r in work}
 
+def get_chunk_snippet(text, chunk_j):
+    """
+    Return the text of the chunk at index chunk_j for the given narrative.
+    Uses the same tokenize/chunk_tokens as the index so the snippet matches
+    what BM25 matched. Used to bold the relevant chunk in the UI.
+    """
+    if bm25 is None or not text:
+        return ""
+    toks = tokenize(text)
+    chunks = chunk_tokens(toks, bm25.chunk_size, bm25.overlap)
+    if chunk_j < 0 or chunk_j >= len(chunks):
+        return ""
+    return " ".join(chunks[chunk_j])
+
+
 def search(query, top_k=10):
     """
     Search API for UI / FastAPI.
+    Returns list of dicts with parent_doc_id, chunk_j, score (and id).
     """
     if bm25 is None:
         raise RuntimeError("BM25 not initialized. Call init(work).")
