@@ -1,32 +1,35 @@
 import { BASE_ENDPOINT } from "./utils";
 import axios from "axios";
 
-const GROUP_ENDPOINT = `${ BASE_ENDPOINT }/search`;
+const SEARCH_ENDPOINT = `${BASE_ENDPOINT}/search`;
 
-export const getTestData = async() => {
-    const endpoint = `${ GROUP_ENDPOINT }/test`;
-    // Send API call
-    const res = await axios.get(endpoint);
-
-    // Handle error
+export const getTestData = async () => {
+    const res = await axios.get(`${SEARCH_ENDPOINT}/test`);
     if (res.status !== 200) {
-        console.error(`API request "GET ${ endpoint }" failed with status code ${ res.status }`);
+        console.error(`API request failed with status ${res.status}`);
         throw new Error(res.statusText);
     }
-
     return res.data;
-}
+};
 
-export const startSearch = async(query, mode = "bm25") => {
-    const endpoint = `${ GROUP_ENDPOINT }`;
-    // Send API call
-    const res = await axios.post(endpoint, { query, mode });
-
-    // Handle error
+/**
+ * Call Ryan's POST /search (main_driver). Returns the results array for the UI.
+ * @param {string} query - Search query
+ * @param {string} mode - "bm25" | "embeddings" | "hybrid"
+ * @param {number} top_k - Max results to return (default 50)
+ */
+export const getSearchResults = async (query, mode = "bm25", top_k = 50) => {
+    const res = await axios.post(SEARCH_ENDPOINT, { query, mode, top_k });
     if (res.status !== 200) {
-        console.error(`API request "GET ${ endpoint }" failed with status code ${ res.status }`);
+        console.error(`POST ${SEARCH_ENDPOINT} failed with status ${res.status}`);
         throw new Error(res.statusText);
     }
+    return res.data.data;
+};
 
+/** @deprecated use getSearchResults */
+export const startSearch = async (query, mode = "bm25") => {
+    const res = await axios.post(SEARCH_ENDPOINT, { query, mode, top_k: 50 });
+    if (res.status !== 200) throw new Error(res.statusText);
     return res.data;
-}
+};
