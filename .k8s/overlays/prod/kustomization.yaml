@@ -9,10 +9,17 @@ resources:
   - hpa-frontend.yaml
   - hpa-backend-main.yaml
   - hpa-backend-bm25.yaml
-# images:
-#   - name: lab
-#     newName: 650251712107.dkr.ecr.us-west-2.amazonaws.com/ryan-schaefer/lab
-#     newTag: "63ba374"
-#   - name: project
-#     newName: 650251712107.dkr.ecr.us-west-2.amazonaws.com/ryan-schaefer/project
-#     newTag: "d72bda3"
+  - hpa-backend-embeddings.yaml
+images:
+  - name: frontend
+    newName: 034362054263.dkr.ecr.us-east-1.amazonaws.com/aviation-safety-capstone-spring-2026/frontend
+    newTag: "latest"
+  - name: backend-main
+    newName: 034362054263.dkr.ecr.us-east-1.amazonaws.com/aviation-safety-capstone-spring-2026/backend-main
+    newTag: "latest"
+  - name: backend-bm25
+    newName: 034362054263.dkr.ecr.us-east-1.amazonaws.com/aviation-safety-capstone-spring-2026/backend-bm25
+    newTag: "latest"
+  - name: backend-embeddings
+    newName: 034362054263.dkr.ecr.us-east-1.amazonaws.com/aviation-safety-capstone-spring-2026/backend-embeddings
+    newTag: "latest"

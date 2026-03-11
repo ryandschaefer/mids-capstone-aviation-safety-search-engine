@@ -208,3 +208,5 @@ __marimo__/
 
 *.history
 *.vscode
+
+.k8s/overlays/prod/qdrant-s3-secret.yaml

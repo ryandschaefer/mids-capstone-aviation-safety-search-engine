@@ -27,3 +27,20 @@ patches:
     target:
       kind: Deployment
       labelSelector: app=backend-main-deployment
+
+  # Qdrant patches
+  ### 1. Delete the Deployment — Qdrant runs in Docker, not in the cluster
+  - patch: |
+      $patch: delete
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: qdrant
+    target:
+      kind: Deployment
+      name: qdrant
+  ### 2. Replace ClusterIP service with ExternalName pointing to host machine
+  - path: patch-service-qdrant.yaml
+    target:
+      kind: Service
+      name: qdrant-service

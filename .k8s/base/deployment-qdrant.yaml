@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qdrant
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: qdrant
+  # Recreate instead of RollingUpdate — during cluster restore, we want the
+  # old pod fully terminated before the new one runs the init script.
+  # Two pods simultaneously upserting into the same collection would cause
+  # duplicate points.
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: qdrant
+        component: vector-database
+    spec:
+      # Pin to the memory-optimized node group (r6i.large, 16GB RAM).
+      # Keeps Qdrant and the embedding pod on the high-memory node away
+      # from the general-purpose t3.medium nodes.
+      nodeSelector:
+        role: memory-optimized
+
+      terminationGracePeriodSeconds: 30
+
+      containers:
+        - name: qdrant
+          image: qdrant/qdrant:v1.8.4    # Pinned — avoid surprise breaking changes
+          ports:
+            - containerPort: 6333
+              name: http
+            - containerPort: 6334
+              name: grpc
+          env:
+            - name: QDRANT__SERVICE__GRPC_PORT
+              value: "6334"
+            - name: QDRANT__LOG_LEVEL
+              value: "INFO"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "2Gi"    # Holds 390k × 1024-dim HNSW index in RAM
+            limits:
+              cpu: "2000m"
+              memory: "4Gi"
+          # Qdrant exposes dedicated health endpoints — use them directly
+          # rather than a generic HTTP check.
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 6333
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+            successThreshold: 1
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 6333
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
