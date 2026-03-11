@@ -3,6 +3,7 @@ from datasets import load_dataset
 import polars as pl
 import src.models.search as model
 import src.schemas.search as schemas
+from src.controllers.bedrock import query_expansion
 from collections import defaultdict
 import time
 
@@ -17,12 +18,20 @@ async def get_test_data():
     # Return the top 15 records
     return df[:15].to_dicts()
 
-async def start_search(query: str, top_k: int, mode: str):
+async def start_search(query: str, top_k: int, mode: str, use_qe: bool = False, use_qe_judge: bool = False):
     start = time.time()
     service_names: list[str] = []
     service_list = []
     times = defaultdict(float)
+    
+    # Use query expansion
+    if use_qe:
+        qe_start = time.time()
+        query = await query_expansion(query, use_judge = use_qe_judge)
+        times["query_expansion"] = time.time() - qe_start
+    
     # Determine which retrieval mode is being used
+    retrieval_start = time.time()
     if mode == "bm25":
         service_names.extend([
             "bm25"
@@ -49,7 +58,7 @@ async def start_search(query: str, top_k: int, mode: str):
         
     # Wait for all services to execute
     service_results: list[schemas.ServiceOutput] = await asyncio.gather(*service_list)
-    times["retrieval"] = time.time() - start
+    times["retrieval"] = time.time() - retrieval_start
     
     synthesis_start = time.time()
     # Extract service outputs
@@ -92,5 +101,6 @@ async def start_search(query: str, top_k: int, mode: str):
     times["api_total"] = time.time() - start
     return {
         "data": data,
+        "used_queries": [query],
         "times": times
     }

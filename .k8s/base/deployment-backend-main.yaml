@@ -27,6 +27,21 @@ spec:
               value: http://backend-bm25-service:8001
             - name: EMBEDDING_URL
               value: http://backend-embeddings-service:8002
+            - name: AWS_ACCESS_KEY_BEDROCK
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: AWS_ACCESS_KEY_BEDROCK
+            - name: AWS_SECRET_KEY_BEDROCK
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: AWS_SECRET_KEY_BEDROCK
+            - name: AWS_REGION_BEDROCK
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: AWS_REGION_BEDROCK
           resources:
             requests:
               cpu: 100m

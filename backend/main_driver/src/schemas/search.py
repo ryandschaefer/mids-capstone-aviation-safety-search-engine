@@ -4,6 +4,8 @@ class StartSearchInput(BaseModel):
     query: str
     top_k: int = 50
     mode: str = "bm25"
+    use_qe: bool = False
+    use_qe_judge: bool = False
     
     @field_validator("mode")
     @classmethod
@@ -23,6 +25,7 @@ class ServiceOutput(BaseModel):
 class StartSearchOutput(BaseModel):
     # search_hash: str
     data: list[dict]
+    used_queries: list[str]
     times: dict[str, float]
     
 class RetrieveSearchInput(BaseModel):
