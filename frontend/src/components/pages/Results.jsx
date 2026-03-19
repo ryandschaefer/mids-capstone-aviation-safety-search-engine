@@ -2,8 +2,10 @@ import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
 import "primereact/resources/themes/lara-light-indigo/theme.css";
 import { useEffect, useState } from "react";
-import { Box, Button, FormControl, Grid, InputLabel, MenuItem, Select, Typography } from "@mui/material";
+import { Box, Button, Chip, FormControl, FormControlLabel, Grid, IconButton, InputLabel, MenuItem, Select, Switch, Tooltip, Typography } from "@mui/material";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
+import ThumbUpAltOutlinedIcon from "@mui/icons-material/ThumbUpAltOutlined";
+import ThumbDownAltOutlinedIcon from "@mui/icons-material/ThumbDownAltOutlined";
 import { MetadataFilters, SearchBar } from "../common";
 import { getSearchResults } from "../../api";
 import { displayColumns } from "../../utils";
@@ -71,6 +73,10 @@ function NarrativeWithHighlightAndChunk({ narrative, snippet, query }) {
 const TIME_DATE_KEY = "Time_Date";
 const PLACE_KEY = "Place_Locale Reference";
 const ANOMALY_KEY = "Events_Anomaly";
+const SEARCH_MODE_KEY = "search-mode";
+const FEEDBACK_KEY = "result-feedback-v1";
+const USE_QE_KEY = "use-qe";
+const USE_QE_JUDGE_KEY = "use-qe-judge";
 
 function applyClientFilters(rows, filters) {
     if (!rows || !rows.length) return [];
@@ -106,24 +112,48 @@ export const Results = () => {
     const [currentPage, setCurrentPage] = useState(0);
     const [pageLength, setPageLength] = useState(10);
     const [userQuery, setUserQuery] = useState("");
-    const [searchMode, setSearchMode] = useState("bm25");
+    const [searchMode, setSearchMode] = useState(localStorage.getItem(SEARCH_MODE_KEY) || "bm25");
+    const [useQe, setUseQe] = useState(localStorage.getItem(USE_QE_KEY) === "true");
+    const [useQeJudge, setUseQeJudge] = useState(localStorage.getItem(USE_QE_JUDGE_KEY) === "true");
     const [queryTime, setQueryTime] = useState(-1.0);
     const [queryTimeText, setQueryTimeText] = useState("");
+    const [expandedQuery, setExpandedQuery] = useState("");
     const [filters, setFilters] = useState({ when_prefix: "", where_contains: "", anomaly_contains: "" });
+    const [feedbackByDoc, setFeedbackByDoc] = useState(() => {
+        try {
+            return JSON.parse(localStorage.getItem(FEEDBACK_KEY) || "{}");
+        } catch {
+            return {};
+        }
+    });
 
     const onSubmit = () => {
         const query = localStorage.getItem("user-query");
         if (query) {
             setLoading(true);
-            const startQueryTime = performance.now();
-            getSearchResults(query, searchMode, 50)
-                .then((data) => {
-                    setRawResults(Array.isArray(data) ? data : []);
+            getSearchResults(query, searchMode, 50, {
+                use_qe: useQe,
+                use_qe_judge: useQeJudge,
+            })
+                .then((response) => {
+                    const rows = Array.isArray(response?.data) ? response.data : [];
+                    setRawResults(rows);
+
+                    const used = Array.isArray(response?.used_queries) ? response.used_queries : [];
+                    const latestUsedQuery = used.length > 0 ? String(used[used.length - 1]) : "";
+                    const isExpanded =
+                        latestUsedQuery &&
+                        latestUsedQuery.trim().toLowerCase() !== query.trim().toLowerCase();
+
+                    setExpandedQuery(isExpanded ? latestUsedQuery : "");
+
+                    if (response?.times?.api_total) {
+                        setQueryTime(response.times.api_total * 1000);
+                    }
                 })
                 .finally(() => {
                     setLoading(false);
                     setUserQuery(query);
-                    setQueryTime(performance.now() - startQueryTime);
                 });
         } else {
             navigate("/");
@@ -145,6 +175,27 @@ export const Results = () => {
         const start = page * pageLength;
         setCurrentPage(page);
         setSearchResults(allResults.slice(start, start + pageLength));
+    };
+
+    const setDocFeedback = (docId, value) => {
+        if (!docId) return;
+        setFeedbackByDoc((prev) => {
+            const next = { ...prev, [docId]: value };
+            localStorage.setItem(FEEDBACK_KEY, JSON.stringify(next));
+            return next;
+        });
+    };
+
+    const getDocId = (record) => String(record.doc_id ?? record.acn_num_ACN ?? "");
+
+    const onToggleQe = (checked) => {
+        setUseQe(checked);
+        localStorage.setItem(USE_QE_KEY, String(checked));
+        if (!checked) {
+            // Judge mode depends on query enhancement path.
+            setUseQeJudge(false);
+            localStorage.setItem(USE_QE_JUDGE_KEY, "false");
+        }
     };
 
     useEffect(() => {
@@ -184,7 +235,11 @@ export const Results = () => {
                             <Select
                                 value={searchMode}
                                 label="Mode"
-                                onChange={(e) => setSearchMode(e.target.value)}
+                                onChange={(e) => {
+                                    const mode = e.target.value;
+                                    setSearchMode(mode);
+                                    localStorage.setItem(SEARCH_MODE_KEY, mode);
+                                }}
                                 disabled={loading}
                             >
                                 <MenuItem value="bm25">BM25</MenuItem>
@@ -192,6 +247,34 @@ export const Results = () => {
                                 <MenuItem value="embeddings">Embeddings</MenuItem>
                             </Select>
                         </FormControl>
+                        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-start", mr: 1 }}>
+                            <FormControlLabel
+                                control={
+                                    <Switch
+                                        size="small"
+                                        checked={useQe}
+                                        onChange={(e) => onToggleQe(e.target.checked)}
+                                        disabled={loading}
+                                    />
+                                }
+                                label="LLM Query Enhancement"
+                            />
+                            <FormControlLabel
+                                control={
+                                    <Switch
+                                        size="small"
+                                        checked={useQeJudge}
+                                        onChange={(e) => {
+                                            const checked = e.target.checked;
+                                            setUseQeJudge(checked);
+                                            localStorage.setItem(USE_QE_JUDGE_KEY, String(checked));
+                                        }}
+                                        disabled={loading || !useQe}
+                                    />
+                                }
+                                label="LLM Relevance Judge"
+                            />
+                        </Box>
                         <MetadataFilters
                             disabled={loading}
                             filters={filters}
@@ -215,13 +298,26 @@ export const Results = () => {
                     {!loading && (
                         <Box>
                             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 1, mb: 1 }}>
-                                <Typography variant="body1">
-                                    {totalResults >= 0
-                                        ? totalResults === 0
-                                            ? `No results for "${userQuery}". Try different keywords or clear filters.`
-                                            : `${totalResults} result${totalResults !== 1 ? "s" : ""} for "${userQuery}" in ${queryTimeText}`
-                                        : ""}
-                                </Typography>
+                                <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 0.5 }}>
+                                    <Typography variant="body1">
+                                        {totalResults >= 0
+                                            ? totalResults === 0
+                                                ? `No results for "${userQuery}". Try different keywords or clear filters.`
+                                                : `${totalResults} result${totalResults !== 1 ? "s" : ""} for "${userQuery}" in ${queryTimeText}`
+                                            : ""}
+                                    </Typography>
+                                    {expandedQuery ? (
+                                        <Typography variant="body2" color="text.secondary">
+                                            Expanded query used: "{expandedQuery}"
+                                        </Typography>
+                                    ) : null}
+                                    <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap" }}>
+                                        <Chip size="small" label={`Mode: ${searchMode.toUpperCase()}`} />
+                                        <Chip size="small" color={useQe ? "primary" : "default"} label={`Search Path: ${useQe ? "LLM Enhanced" : "Fast Baseline"}`} />
+                                        <Chip size="small" color={useQe ? "primary" : "default"} label={`LLM QE: ${useQe ? "On" : "Off"}`} />
+                                        <Chip size="small" color={useQeJudge ? "primary" : "default"} label={`LLM Judge: ${useQeJudge ? "On" : "Off"}`} />
+                                    </Box>
+                                </Box>
                                 {allResults.length > 0 && (
                                     <Button
                                         size="small"
@@ -305,6 +401,37 @@ export const Results = () => {
                                         />
                                     );
                                 })}
+                                <Column
+                                    key="feedback"
+                                    header="Feedback"
+                                    style={{ minWidth: "110px" }}
+                                    body={(record) => {
+                                        const docId = getDocId(record);
+                                        const current = feedbackByDoc[docId];
+                                        return (
+                                            <Box sx={{ display: "flex", gap: 0.5, justifyContent: "center" }}>
+                                                <Tooltip title="Relevant">
+                                                    <IconButton
+                                                        size="small"
+                                                        color={current === "up" ? "primary" : "default"}
+                                                        onClick={() => setDocFeedback(docId, "up")}
+                                                    >
+                                                        <ThumbUpAltOutlinedIcon fontSize="small" />
+                                                    </IconButton>
+                                                </Tooltip>
+                                                <Tooltip title="Not relevant">
+                                                    <IconButton
+                                                        size="small"
+                                                        color={current === "down" ? "error" : "default"}
+                                                        onClick={() => setDocFeedback(docId, "down")}
+                                                    >
+                                                        <ThumbDownAltOutlinedIcon fontSize="small" />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            </Box>
+                                        );
+                                    }}
+                                />
                             </DataTable>
                         </Box>
                     )}
