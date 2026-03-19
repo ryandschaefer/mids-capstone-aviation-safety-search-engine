@@ -28,6 +28,14 @@ docker tag \
     034362054263.dkr.ecr.us-east-1.amazonaws.com/aviation-safety-capstone-spring-2026/backend-bm25:latest
 docker push 034362054263.dkr.ecr.us-east-1.amazonaws.com/aviation-safety-capstone-spring-2026/backend-bm25:latest
 
+# Build qdrant init container
+cd ../qdrant-init
+docker build --platform linux/amd64 --no-cache -t aviation-safety-capstone-spring-2026/qdrant-init .
+docker tag \
+    aviation-safety-capstone-spring-2026/qdrant-init:latest \
+    034362054263.dkr.ecr.us-east-1.amazonaws.com/aviation-safety-capstone-spring-2026/qdrant-init:latest
+docker push 034362054263.dkr.ecr.us-east-1.amazonaws.com/aviation-safety-capstone-spring-2026/qdrant-init:latest
+
 # Build backend embeddings
 cd ../embeddings
 docker build --platform linux/amd64 --no-cache -t aviation-safety-capstone-spring-2026/backend-embeddings .

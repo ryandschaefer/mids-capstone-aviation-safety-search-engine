@@ -69,15 +69,26 @@ async def start_search(query: str, top_k: int, mode: str, use_qe: bool = False, 
         
     if mode == "hybrid":
         # Handle synthesizing hybrid results
+        K = 60
         df_retrieved = outputs["bm25"] \
             .rename({ "score": "bm25_score" }) \
+            .with_row_index(name = "bm25_rank", offset = 1) \
             .join(
                 outputs["embeddings"] \
-                    .rename({ "score": "embedding_score" }),
+                    .rename({ "score": "embedding_score" }) \
+                    .with_row_index(name = "embedding_rank", offset = 1),
                 on = "doc_id", how = "full", validate = "1:1"
             ) \
             .with_columns(
-                score = (1 + pl.col("bm25_score").fill_null(0.0)) * (1 + pl.col("embedding_score").fill_null(0.0))
+                pl.col("bm25_rank").fill_null(len(outputs["embeddings"]) + 1),
+                pl.col("embedding_rank").fill_null(len(outputs["bm25"]) + 1),
+                # score = (1 + pl.col("bm25_score").fill_null(0.0)) * (1 + pl.col("embedding_score").fill_null(0.0))
+            ) \
+            .with_columns(
+                score = (
+                    (1 / (pl.col("bm25_rank") + K)) +
+                    (1 / (pl.col("embedding_rank") + K))
+                )
             )
     else:
         # Use bm25 or embedding results

@@ -27,6 +27,15 @@ patches:
       kind: Deployment
       name: backend-embeddings-deployment
  
+  # Fix model name
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/env/1/value
+        value: thenlper/gte-large
+    target:
+      kind: Deployment
+      name: backend-embeddings-deployment
+ 
   # Expose only the frontend via NLB — all other services stay ClusterIP
   - patch: |-
       apiVersion: v1
@@ -59,4 +68,7 @@ images:
     newTag: "latest"
   - name: backend-embeddings
     newName: 034362054263.dkr.ecr.us-east-1.amazonaws.com/aviation-safety-capstone-spring-2026/backend-embeddings
+    newTag: "latest"
+  - name: qdrant-init
+    newName: 034362054263.dkr.ecr.us-east-1.amazonaws.com/aviation-safety-capstone-spring-2026/qdrant-init
     newTag: "latest"

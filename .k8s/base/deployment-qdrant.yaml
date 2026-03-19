@@ -30,7 +30,7 @@ spec:
 
       containers:
         - name: qdrant
-          image: qdrant/qdrant:v1.8.4    # Pinned — avoid surprise breaking changes
+          image: qdrant/qdrant:v1.17.0    # Pinned — avoid surprise breaking changes
           ports:
             - containerPort: 6333
               name: http
@@ -47,7 +47,7 @@ spec:
               memory: "2Gi"    # Holds 390k × 1024-dim HNSW index in RAM
             limits:
               cpu: "2000m"
-              memory: "4Gi"
+              memory: "6Gi"
           # Qdrant exposes dedicated health endpoints — use them directly
           # rather than a generic HTTP check.
           readinessProbe:
