@@ -7,6 +7,12 @@ resources:
   - ../../base
 
 patches:
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+    target:
+      kind: Deployment
   - path: lb-service-frontend.yaml
     target:
       kind: Service
@@ -44,3 +50,10 @@ patches:
     target:
       kind: Service
       name: qdrant-service
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/env/0/value
+        value: http://localhost:8000
+    target:
+      kind: Deployment
+      name: frontend-deployment

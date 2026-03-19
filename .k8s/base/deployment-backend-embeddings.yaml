@@ -16,6 +16,11 @@ spec:
       labels:
         app: backend-embeddings
     spec:
+      # Pin to the memory-optimized node group (r6i.large, 16GB RAM).
+      # Keeps Qdrant and the embedding pod on the high-memory node away
+      # from the general-purpose t3.medium nodes.
+      nodeSelector:
+        role: memory-optimized
       containers:
         - name: backend-embeddings-container
           image: backend-embeddings:latest

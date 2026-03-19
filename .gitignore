@@ -210,3 +210,4 @@ __marimo__/
 *.vscode
 
 .k8s/base/aws-credentials-secret.yaml
+*.DS_Store

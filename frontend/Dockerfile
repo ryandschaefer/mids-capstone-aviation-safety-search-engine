@@ -24,6 +24,10 @@ COPY --from=build /app/build /usr/share/nginx/html
 # Copy custom nginx config
 COPY src/nginx.conf /etc/nginx/conf.d/default.conf
 
+# Copy env injection script — nginx runs this on startup before serving requests
+COPY react_env.sh /docker-entrypoint.d/react_env.sh
+RUN chmod +x /docker-entrypoint.d/react_env.sh
+
 # Create non-root user
 RUN addgroup -g 1000 appuser && \
     adduser -D -u 1000 -G appuser appuser && \
