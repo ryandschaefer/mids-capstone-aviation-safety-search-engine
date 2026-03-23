@@ -11,9 +11,13 @@ async def get_embedding_data(query: str, top_k: int = 50):
     start = time.time()
     # Search with embeddings
     df_embeddings = pl.DataFrame(model.search(query, top_k)) \
-        .select(["score", "doc_id"]) \
-        .sort("score", descending=True) \
-        .unique("doc_id", keep = "first")
+        .select(["score", "doc_id", "chunk_id"]) \
+        .group_by("doc_id") \
+        .agg(
+            chunk_id = pl.col("chunk_id"),
+            score = pl.col("score").max()
+        ) \
+        .sort("score", descending=True)
     # Return the results
     data = df_embeddings.to_dicts()
     results = {

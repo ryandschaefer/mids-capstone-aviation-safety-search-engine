@@ -9,6 +9,7 @@ resources:
   - hpa-backend-main.yaml
   - hpa-backend-bm25.yaml
   - hpa-backend-embeddings.yaml
+  - qdrant-init-container.yaml
 patches:
   # Pull from ECR on all deployments (base uses Never for minikube)
   - patch: |-

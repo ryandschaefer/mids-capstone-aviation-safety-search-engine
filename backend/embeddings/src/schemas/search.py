@@ -7,6 +7,7 @@ class ServiceInput(BaseModel):
 class SearchResult(BaseModel):
     score: float
     doc_id: str
+    chunk_id: list[int]
     
 class ServiceOutput(BaseModel):
     data: list[SearchResult]

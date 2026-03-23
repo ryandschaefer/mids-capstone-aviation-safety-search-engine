@@ -9,6 +9,8 @@ import math
 import heapq
 import re
 from collections import defaultdict, Counter
+import boto3
+import os
 
 # =========================
 # Tokenizer + chunking
@@ -103,6 +105,14 @@ def init(index_path="src/models/bm25_asrs_full.pkl.gz"):
     """
     Initialize once at app startup.
     """
+    # Download index from s3
+    S3_BUCKET = os.environ.get("S3_BUCKET")
+    S3_KEY = os.environ.get("S3_KEY")
+    print(f"Downloading s3://{S3_BUCKET}/{S3_KEY}...")
+    s3 = boto3.client("s3")
+    s3.download_file(S3_BUCKET, S3_KEY, index_path)
+    print("Download complete.")
+    
     global bm25
     bm25 = BM25Index.load(index_path)
 
@@ -122,7 +132,7 @@ def search(query, top_k=10):
             "id": f"{parent_id}__chunk{chunk_j}",
             "score": float(score),
             "doc_id": parent_id,
-            "chunk_j": int(chunk_j),
+            "chunk_id": int(chunk_j),
         })
 
     return results

@@ -12,5 +12,10 @@ async def get_test_data():
 
 # Run a search
 @router.post("")
-async def get_test_data(body: schemas.StartSearchInput) -> schemas.StartSearchOutput:
+async def start_search(body: schemas.StartSearchInput) -> schemas.StartSearchOutput:
     return await controller.start_search(body.query, body.top_k, body.mode, body.use_qe, body.use_qe_judge)
+
+# Run a search
+@router.get("/retrieve")
+async def retrieve_results(body: schemas.RetrieveSearchInput) -> list[dict]:
+    return await controller.retrieve_results(body.cache_key, body.page, body.page_length)

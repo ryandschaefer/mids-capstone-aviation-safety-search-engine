@@ -1,4 +1,5 @@
 from pydantic import BaseModel, field_validator
+from typing import Optional
 
 class StartSearchInput(BaseModel):
     query: str
@@ -17,19 +18,25 @@ class StartSearchInput(BaseModel):
             return value
         else:
             raise ValueError(f"`{ value }` is not a valid retrieval mode. Choose one of these valid options: " + ", ".join(valid_modes))
+ 
+class SearchResult(BaseModel):
+    score: float
+    doc_id: str
+    chunk_id: list[int]
     
 class ServiceOutput(BaseModel):
-    data: list[dict]
+    data: list[SearchResult]
     time: float
 
 class StartSearchOutput(BaseModel):
-    # search_hash: str
-    data: list[dict]
-    used_queries: list[str]
+    cache_key: str
+    # data: list[dict]
+    cached: bool
+    used_queries: Optional[list[str]]
     times: dict[str, float]
     
 class RetrieveSearchInput(BaseModel):
-    search_hash: str
+    cache_key: str
     page: int = 1
     page_length: int = 10
     
