@@ -28,12 +28,14 @@ async def start_search(query: str, top_k: int, mode: str, use_qe: bool = False, 
         "use_qe_judge": use_qe_judge
     }
     cache_key = cache.create_key(search_params)
-    if cache.key_exists(cache_key):
+    cache_value = cache.get_cache(cache_key)
+    if cache_value:
         times["cache_read"] = time.time() - cache_start
         times["api_total"] = time.time() - start
         return {
             "cache_key": cache_key,
             "cached": True,
+            "total_results": len(cache_value),
             "times": times,
             "used_queries": []
         }
@@ -137,6 +139,7 @@ async def start_search(query: str, top_k: int, mode: str, use_qe: bool = False, 
         # "data": data,
         "cache_key": cache_key,
         "cached": False,
+        "total_results": len(data),
         "used_queries": [query],
         "times": times
     }

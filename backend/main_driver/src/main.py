@@ -4,7 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.routes import search
 import os
 
-FRONTEND_URL = os.environ.get("FRONTEND_URL")
+# FRONTEND_URL = os.environ.get("FRONTEND_URL")
+FRONTEND_URL = "*"
 
 # Initialize app
 app = FastAPI()

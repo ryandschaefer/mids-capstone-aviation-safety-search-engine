@@ -1,16 +1,22 @@
 import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
+import { FilterMatchMode, FilterOperator, PrimeReactProvider } from "primereact/api";
 import "primereact/resources/themes/lara-light-indigo/theme.css";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Box, Button, Chip, FormControl, FormControlLabel, Grid, IconButton, InputLabel, MenuItem, Select, Switch, Tooltip, Typography } from "@mui/material";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import ThumbUpAltOutlinedIcon from "@mui/icons-material/ThumbUpAltOutlined";
 import ThumbDownAltOutlinedIcon from "@mui/icons-material/ThumbDownAltOutlined";
-import { MetadataFilters, SearchBar } from "../common";
-import { getSearchResults } from "../../api";
+import { allColumns, MetadataFilters, SearchBar } from "../common";
+import { createSearch, getSearchResults } from "../../api";
 import { displayColumns } from "../../utils";
 import { useNavigate } from "react-router-dom";
 import humanizeDuration from "humanize-duration";
+import { MultiSelect } from "primereact/multiselect";
+
+const primeReactConfig = {
+    hideOverlaysOnDocumentScrolling: false
+};
 
 const normalize = (s) => (s || "").replace(/\s+/g, " ").trim();
 
@@ -106,8 +112,6 @@ export const Results = () => {
 
     const [loading, setLoading] = useState(false);
     const [searchResults, setSearchResults] = useState([]);
-    const [rawResults, setRawResults] = useState([]);
-    const [allResults, setAllResults] = useState([]);
     const [totalResults, setTotalResults] = useState(-1);
     const [currentPage, setCurrentPage] = useState(0);
     const [pageLength, setPageLength] = useState(10);
@@ -118,6 +122,12 @@ export const Results = () => {
     const [queryTime, setQueryTime] = useState(-1.0);
     const [queryTimeText, setQueryTimeText] = useState("");
     const [expandedQuery, setExpandedQuery] = useState("");
+    const [cacheKey, setCacheKey] = useState("");
+    const [isCached, setIsCached] = useState(false);
+    const [metadataFilters, setMetadataFilters] = useState({});
+    const [visibleColumns, setVisibleColumns] = useState([
+        "acn_num_ACN", "Time_Date", "Time.1_Local Time Of Day", "Place_Locale Reference"
+    ]);
     const [filters, setFilters] = useState({ when_prefix: "", where_contains: "", anomaly_contains: "" });
     const [feedbackByDoc, setFeedbackByDoc] = useState(() => {
         try {
@@ -131,50 +141,64 @@ export const Results = () => {
         const query = localStorage.getItem("user-query");
         if (query) {
             setLoading(true);
-            getSearchResults(query, searchMode, 50, {
+
+            createSearch(query, searchMode, 50, {
                 use_qe: useQe,
                 use_qe_judge: useQeJudge,
             })
-                .then((response) => {
-                    const rows = Array.isArray(response?.data) ? response.data : [];
-                    setRawResults(rows);
-
+                .then(response => {
+                    // Save search metadata
+                    setCacheKey(response.cache_key);
+                    setIsCached(response.cached);
+                    setTotalResults(response.total_results);
+                    // Save expanded query
                     const used = Array.isArray(response?.used_queries) ? response.used_queries : [];
                     const latestUsedQuery = used.length > 0 ? String(used[used.length - 1]) : "";
                     const isExpanded =
                         latestUsedQuery &&
                         latestUsedQuery.trim().toLowerCase() !== query.trim().toLowerCase();
-
                     setExpandedQuery(isExpanded ? latestUsedQuery : "");
-
+                    // Save search time
                     if (response?.times?.api_total) {
                         setQueryTime(response.times.api_total * 1000);
                     }
+
+                    // Load the first page of results for the new search
+                    if (currentPage === 0) {
+                        getPage(response.cache_key, 0, pageLength);
+                    } else {
+                        setCurrentPage(0);
+                    }
+                })
+                .catch(err => {
+                    console.log(err);
+                    setLoading(false);
                 })
                 .finally(() => {
-                    setLoading(false);
                     setUserQuery(query);
-                });
+                })
+            
         } else {
             navigate("/");
         }
     };
 
-    useEffect(() => {
-        if (rawResults.length >= 0 && !loading) {
-            const filtered = applyClientFilters(rawResults, filters);
-            setAllResults(filtered);
-            setTotalResults(filtered.length);
-            setSearchResults(filtered.slice(0, pageLength));
-            setCurrentPage(0);
+    const getPage = (cacheKey, currentPage, pageLength) => {
+        if (cacheKey) {
+            setLoading(true);
+            getSearchResults(cacheKey, currentPage+1, pageLength)
+                .then((response) => {
+                    const rows = Array.isArray(response?.data) ? response.data : [];
+                    setSearchResults(rows);
+                })
+                .finally(() => {
+                    setLoading(false);
+                });
         }
-    }, [rawResults, filters, loading]);
+    }
 
     const onPage = (event) => {
-        const page = event.page;
-        const start = page * pageLength;
-        setCurrentPage(page);
-        setSearchResults(allResults.slice(start, start + pageLength));
+        setCurrentPage(event.page);
     };
 
     const setDocFeedback = (docId, value) => {
@@ -198,6 +222,53 @@ export const Results = () => {
         }
     };
 
+    const renderTableColumns = useMemo(() => (
+        
+            visibleColumns.map((col, i) => {
+                const column = allColumns.filter(x => x.value === col)[0];
+                if (column) {
+                    const id = column.value;
+                    const colName = column.label;
+
+                    return (
+                        <Column
+                            key={i}
+                            field={id}
+                            header={colName}
+                            style={{ minWidth: "130px", wordWrap: "break-word" }}
+                            body={(record) => (
+                                <Box
+                                    sx={{
+                                        minHeight: "60px",
+                                        maxHeight: "200px",
+                                        overflowY: "auto",
+                                        verticalAlign: "top",
+                                        pt: 0.5,
+                                        whiteSpace: "normal",
+                                        wordWrap: "break-word",
+                                        lineHeight: 1.4,
+                                        fontSize: "0.875rem",
+                                        "&::-webkit-scrollbar": { width: "6px" },
+                                        "&::-webkit-scrollbar-track": { background: "#f1f1f1", borderRadius: "3px" },
+                                        "&::-webkit-scrollbar-thumb": { background: "#c1c1c1", borderRadius: "3px" },
+                                        "&::-webkit-scrollbar-thumb:hover": { background: "#a1a1a1" },
+                                    }}
+                                >
+                                    {record[id]}
+                                </Box>
+                            )}
+                            // Handle metadata filtering
+                            filter
+                            maxConstraints={Infinity}
+                        />
+                    );
+                } else {
+                    return <></>;
+                }
+                
+            })
+    ), [visibleColumns]);
+
     useEffect(() => {
         onSubmit();
     }, []);
@@ -208,235 +279,278 @@ export const Results = () => {
         );
     }, [queryTime]);
 
+    useEffect(() => {
+        getPage(cacheKey, currentPage, pageLength);
+    }, [currentPage, pageLength]);
+
+    const onColumnToggle = (event) => {
+        const selectedColumns = event.value;
+        const orderedSelectedColumns = allColumns
+            .filter((col) => selectedColumns.some((sCol) => sCol === col.value))
+            .map(col => col.value);
+
+        setVisibleColumns(orderedSelectedColumns);
+    }
+
+    const selectColumnsMenu = <MultiSelect
+        value={visibleColumns}
+        options={allColumns}
+        optionLabel="label"
+        onChange={onColumnToggle}
+        display="chip"
+    />
+
     return (
-        <Box sx={{ display: "flex", flexDirection: "column", textAlign: "center" }}>
-            <Grid container rowSpacing={3} sx={{ mt: "5dvh" }}>
-                <Grid size={1}>
-                    <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", justifyContent: "center" }}>
-                        <Button onClick={() => navigate("/")}>Home</Button>
-                        <Button onClick={() => navigate("/about")}>About</Button>
-                    </Box>
-                </Grid>
+        <PrimeReactProvider value={primeReactConfig}>
+            <Box sx={{ display: "flex", flexDirection: "column", textAlign: "center" }}>
+                <Grid container rowSpacing={3} sx={{ mt: "5dvh" }}>
+                    <Grid size={1}>
+                        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", justifyContent: "center" }}>
+                            <Button onClick={() => navigate("/")}>Home</Button>
+                            <Button onClick={() => navigate("/about")}>About</Button>
+                        </Box>
+                    </Grid>
 
-                <Grid size={8}>
-                    <Box sx={{ width: "80%", alignItems: "center", ml: "10%" }}>
-                        <SearchBar
-                            disabled={loading}
-                            onSubmit={onSubmit}
-                            initQuery={userQuery}
-                        />
-                    </Box>
-                </Grid>
-
-                <Grid size={3}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-                        <FormControl size="small" sx={{ minWidth: 100 }}>
-                            <InputLabel>Mode</InputLabel>
-                            <Select
-                                value={searchMode}
-                                label="Mode"
-                                onChange={(e) => {
-                                    const mode = e.target.value;
-                                    setSearchMode(mode);
-                                    localStorage.setItem(SEARCH_MODE_KEY, mode);
-                                }}
+                    <Grid size={8}>
+                        <Box sx={{ width: "80%", alignItems: "center", ml: "10%" }}>
+                            <SearchBar
                                 disabled={loading}
-                            >
-                                <MenuItem value="bm25">BM25</MenuItem>
-                                <MenuItem value="hybrid">Hybrid</MenuItem>
-                                <MenuItem value="embeddings">Embeddings</MenuItem>
-                            </Select>
-                        </FormControl>
-                        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-start", mr: 1 }}>
-                            <FormControlLabel
-                                control={
-                                    <Switch
-                                        size="small"
-                                        checked={useQe}
-                                        onChange={(e) => onToggleQe(e.target.checked)}
-                                        disabled={loading}
-                                    />
-                                }
-                                label="LLM Query Enhancement"
-                            />
-                            <FormControlLabel
-                                control={
-                                    <Switch
-                                        size="small"
-                                        checked={useQeJudge}
-                                        onChange={(e) => {
-                                            const checked = e.target.checked;
-                                            setUseQeJudge(checked);
-                                            localStorage.setItem(USE_QE_JUDGE_KEY, String(checked));
-                                        }}
-                                        disabled={loading || !useQe}
-                                    />
-                                }
-                                label="LLM Relevance Judge"
+                                onSubmit={onSubmit}
+                                initQuery={userQuery}
                             />
                         </Box>
-                        <MetadataFilters
-                            disabled={loading}
-                            filters={filters}
-                            onFiltersChange={setFilters}
-                            onApply={() => {}}
-                        />
-                    </Box>
-                </Grid>
+                    </Grid>
 
-                <Grid size={12}>
-                    {loading && (
-                        <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", mt: { xs: 3, sm: "50px" }, width: "100%" }}>
-                            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "60vh" }}>
-                                <div className="spinner-border" style={{ width: "5rem", height: "5rem" }} role="status">
-                                    <span className="sr-only">Loading</span>
-                                </div>
-                            </div>
-                        </Box>
-                    )}
-
-                    {!loading && (
-                        <Box>
-                            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 1, mb: 1 }}>
-                                <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 0.5 }}>
-                                    <Typography variant="body1">
-                                        {totalResults >= 0
-                                            ? totalResults === 0
-                                                ? `No results for "${userQuery}". Try different keywords or clear filters.`
-                                                : `${totalResults} result${totalResults !== 1 ? "s" : ""} for "${userQuery}" in ${queryTimeText}`
-                                            : ""}
-                                    </Typography>
-                                    {expandedQuery ? (
-                                        <Typography variant="body2" color="text.secondary">
-                                            Expanded query used: "{expandedQuery}"
-                                        </Typography>
-                                    ) : null}
-                                    <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap" }}>
-                                        <Chip size="small" label={`Mode: ${searchMode.toUpperCase()}`} />
-                                        <Chip size="small" color={useQe ? "primary" : "default"} label={`Search Path: ${useQe ? "LLM Enhanced" : "Fast Baseline"}`} />
-                                        <Chip size="small" color={useQe ? "primary" : "default"} label={`LLM QE: ${useQe ? "On" : "Off"}`} />
-                                        <Chip size="small" color={useQeJudge ? "primary" : "default"} label={`LLM Judge: ${useQeJudge ? "On" : "Off"}`} />
-                                    </Box>
-                                </Box>
-                                {allResults.length > 0 && (
-                                    <Button
-                                        size="small"
-                                        variant="outlined"
-                                        startIcon={<FileDownloadIcon />}
-                                        onClick={() => {
-                                            const headers = displayColumns.map((c) => c.name);
-                                            const escape = (v) => {
-                                                const s = v == null ? "" : String(v);
-                                                return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
-                                            };
-                                            const rows = allResults.map((r) => displayColumns.map((c) => escape(r[c.id])).join(","));
-                                            const csv = [headers.join(","), ...rows].join("\n");
-                                            const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-                                            const url = URL.createObjectURL(blob);
-                                            const a = document.createElement("a");
-                                            a.href = url;
-                                            a.download = `asrs-results-${userQuery.replace(/\s+/g, "-").slice(0, 30)}.csv`;
-                                            a.click();
-                                            URL.revokeObjectURL(url);
-                                        }}
-                                    >
-                                        Export CSV
-                                    </Button>
-                                )}
-                            </Box>
-                            <DataTable
-                                value={searchResults}
-                                scrollable
-                                showBoxlines
-                                stripedRows
-                                style={{ width: "100%", maxWidth: "100%" }}
-                                lazy
-                                paginator
-                                rows={pageLength}
-                                totalRecords={totalResults}
-                                onPage={onPage}
-                                first={currentPage * pageLength}
-                                emptyMessage="No Records Found"
-                                paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
-                                currentPageReportTemplate="Showing {first} to {last} of {totalRecords} entries"
-                            >
-                                {displayColumns.map((col, i) => {
-                                    const id = col.id;
-                                    const colName = col.name;
-                                    return (
-                                        <Column
-                                            key={i}
-                                            field={id}
-                                            header={colName}
-                                            style={{ minWidth: "130px", wordWrap: "break-word" }}
-                                            body={(record) => (
-                                                <Box
-                                                    sx={{
-                                                        minHeight: "60px",
-                                                        maxHeight: "200px",
-                                                        overflowY: "auto",
-                                                        verticalAlign: "top",
-                                                        pt: 0.5,
-                                                        whiteSpace: "normal",
-                                                        wordWrap: "break-word",
-                                                        lineHeight: 1.4,
-                                                        fontSize: "0.875rem",
-                                                        "&::-webkit-scrollbar": { width: "6px" },
-                                                        "&::-webkit-scrollbar-track": { background: "#f1f1f1", borderRadius: "3px" },
-                                                        "&::-webkit-scrollbar-thumb": { background: "#c1c1c1", borderRadius: "3px" },
-                                                        "&::-webkit-scrollbar-thumb:hover": { background: "#a1a1a1" },
-                                                    }}
-                                                >
-                                                    {id === "Report 1_Narrative" ? (
-                                                        <NarrativeWithHighlightAndChunk
-                                                            narrative={record[id]}
-                                                            snippet={record.snippet}
-                                                            query={userQuery}
-                                                        />
-                                                    ) : (
-                                                        record[id]
-                                                    )}
-                                                </Box>
-                                            )}
-                                        />
-                                    );
-                                })}
-                                <Column
-                                    key="feedback"
-                                    header="Feedback"
-                                    style={{ minWidth: "110px" }}
-                                    body={(record) => {
-                                        const docId = getDocId(record);
-                                        const current = feedbackByDoc[docId];
-                                        return (
-                                            <Box sx={{ display: "flex", gap: 0.5, justifyContent: "center" }}>
-                                                <Tooltip title="Relevant">
-                                                    <IconButton
-                                                        size="small"
-                                                        color={current === "up" ? "primary" : "default"}
-                                                        onClick={() => setDocFeedback(docId, "up")}
-                                                    >
-                                                        <ThumbUpAltOutlinedIcon fontSize="small" />
-                                                    </IconButton>
-                                                </Tooltip>
-                                                <Tooltip title="Not relevant">
-                                                    <IconButton
-                                                        size="small"
-                                                        color={current === "down" ? "error" : "default"}
-                                                        onClick={() => setDocFeedback(docId, "down")}
-                                                    >
-                                                        <ThumbDownAltOutlinedIcon fontSize="small" />
-                                                    </IconButton>
-                                                </Tooltip>
-                                            </Box>
-                                        );
+                    <Grid size={3}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                            <FormControl size="small" sx={{ minWidth: 100 }}>
+                                <InputLabel>Mode</InputLabel>
+                                <Select
+                                    value={searchMode}
+                                    label="Mode"
+                                    onChange={(e) => {
+                                        const mode = e.target.value;
+                                        setSearchMode(mode);
+                                        localStorage.setItem(SEARCH_MODE_KEY, mode);
                                     }}
+                                    disabled={loading}
+                                >
+                                    <MenuItem value="bm25">BM25</MenuItem>
+                                    <MenuItem value="hybrid">Hybrid</MenuItem>
+                                    <MenuItem value="embeddings">Embeddings</MenuItem>
+                                </Select>
+                            </FormControl>
+                            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-start", mr: 1 }}>
+                                <FormControlLabel
+                                    control={
+                                        <Switch
+                                            size="small"
+                                            checked={useQe}
+                                            onChange={(e) => onToggleQe(e.target.checked)}
+                                            disabled={loading}
+                                        />
+                                    }
+                                    label="LLM Query Enhancement"
                                 />
-                            </DataTable>
+                                <FormControlLabel
+                                    control={
+                                        <Switch
+                                            size="small"
+                                            checked={useQeJudge}
+                                            onChange={(e) => {
+                                                const checked = e.target.checked;
+                                                setUseQeJudge(checked);
+                                                localStorage.setItem(USE_QE_JUDGE_KEY, String(checked));
+                                            }}
+                                            disabled={loading || !useQe}
+                                        />
+                                    }
+                                    label="LLM Relevance Judge"
+                                />
+                            </Box>
+                            <MetadataFilters
+                                disabled={loading}
+                                filters={filters}
+                                onFiltersChange={setFilters}
+                                onApply={() => {}}
+                            />
                         </Box>
-                    )}
+                    </Grid>
+
+                    <Grid size={12}>
+                        {loading && (
+                            <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", mt: { xs: 3, sm: "50px" }, width: "100%" }}>
+                                <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "60vh" }}>
+                                    <div className="spinner-border" style={{ width: "5rem", height: "5rem" }} role="status">
+                                        <span className="sr-only">Loading</span>
+                                    </div>
+                                </div>
+                            </Box>
+                        )}
+
+                        {!loading && (
+                            <Box>
+                                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 1, mb: 1 }}>
+                                    <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 0.5 }}>
+                                        <Typography variant="body1">
+                                            {totalResults >= 0
+                                                ? totalResults === 0
+                                                    ? `No results for "${userQuery}". Try different keywords or clear filters.`
+                                                    : `${totalResults} result${totalResults !== 1 ? "s" : ""} for "${userQuery}" in ${queryTimeText}`
+                                                : ""}
+                                        </Typography>
+                                        {expandedQuery ? (
+                                            <Typography variant="body2" color="text.secondary">
+                                                Expanded query used: "{expandedQuery}"
+                                            </Typography>
+                                        ) : null}
+                                        <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap" }}>
+                                            <Chip size="small" label={`Mode: ${searchMode.toUpperCase()}`} />
+                                            <Chip size="small" color={useQe ? "primary" : "default"} label={`Search Path: ${useQe ? "LLM Enhanced" : "Fast Baseline"}`} />
+                                            <Chip size="small" color={useQe ? "primary" : "default"} label={`LLM QE: ${useQe ? "On" : "Off"}`} />
+                                            <Chip size="small" color={useQeJudge ? "primary" : "default"} label={`LLM Judge: ${useQeJudge ? "On" : "Off"}`} />
+                                        </Box>
+                                    </Box>
+                                    {totalResults > 0 && (
+                                        <Button
+                                            size="small"
+                                            variant="outlined"
+                                            startIcon={<FileDownloadIcon />}
+                                            onClick={() => {
+                                                const headers = displayColumns.map((c) => c.name);
+                                                const escape = (v) => {
+                                                    const s = v == null ? "" : String(v);
+                                                    return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
+                                                };
+                                                const rows = searchResults.map((r) => displayColumns.map((c) => escape(r[c.id])).join(","));
+                                                const csv = [headers.join(","), ...rows].join("\n");
+                                                const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                                                const url = URL.createObjectURL(blob);
+                                                const a = document.createElement("a");
+                                                a.href = url;
+                                                a.download = `asrs-results-${userQuery.replace(/\s+/g, "-").slice(0, 30)}.csv`;
+                                                a.click();
+                                                URL.revokeObjectURL(url);
+                                            }}
+                                        >
+                                            Export CSV
+                                        </Button>
+                                    )}
+                                </Box>
+                                <DataTable
+                                    value={searchResults}
+                                    scrollable
+                                    showBoxlines
+                                    stripedRows
+                                    header={selectColumnsMenu}
+                                    style={{ width: "100%", maxWidth: "100%" }}
+                                    lazy
+                                    paginator
+                                    rows={pageLength}
+                                    totalRecords={totalResults}
+                                    onPage={onPage}
+                                    first={currentPage * pageLength}
+                                    emptyMessage="No Records Found"
+                                    paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
+                                    currentPageReportTemplate="Showing {first} to {last} of {totalRecords} entries"
+                                    filters={metadataFilters}
+                                    onFilter={event => setMetadataFilters(event.filters)}
+                                >
+                                    { renderTableColumns }
+
+                                    <Column
+                                        key="Report 1_Narrative"
+                                        field="Report 1_Narrative"
+                                        header="Narrative"
+                                        style={{ minWidth: "130px", wordWrap: "break-word" }}
+                                        body={(record) => (
+                                            <Box
+                                                sx={{
+                                                    minHeight: "60px",
+                                                    maxHeight: "200px",
+                                                    overflowY: "auto",
+                                                    verticalAlign: "top",
+                                                    pt: 0.5,
+                                                    whiteSpace: "normal",
+                                                    wordWrap: "break-word",
+                                                    lineHeight: 1.4,
+                                                    fontSize: "0.875rem",
+                                                    "&::-webkit-scrollbar": { width: "6px" },
+                                                    "&::-webkit-scrollbar-track": { background: "#f1f1f1", borderRadius: "3px" },
+                                                    "&::-webkit-scrollbar-thumb": { background: "#c1c1c1", borderRadius: "3px" },
+                                                    "&::-webkit-scrollbar-thumb:hover": { background: "#a1a1a1" },
+                                                }}
+                                            >
+                                                {record["Report 1_Narrative"]}
+                                            </Box>
+                                        )}
+                                    />
+
+                                    <Column
+                                        key="score"
+                                        field="score"
+                                        header="Relevancy"
+                                        style={{ minWidth: "130px", wordWrap: "break-word" }}
+                                        body={(record) => (
+                                            <Box
+                                                sx={{
+                                                    minHeight: "60px",
+                                                    maxHeight: "200px",
+                                                    overflowY: "auto",
+                                                    verticalAlign: "top",
+                                                    pt: 0.5,
+                                                    whiteSpace: "normal",
+                                                    wordWrap: "break-word",
+                                                    lineHeight: 1.4,
+                                                    fontSize: "0.875rem",
+                                                    "&::-webkit-scrollbar": { width: "6px" },
+                                                    "&::-webkit-scrollbar-track": { background: "#f1f1f1", borderRadius: "3px" },
+                                                    "&::-webkit-scrollbar-thumb": { background: "#c1c1c1", borderRadius: "3px" },
+                                                    "&::-webkit-scrollbar-thumb:hover": { background: "#a1a1a1" },
+                                                }}
+                                            >
+                                                {record["score"]}
+                                            </Box>
+                                        )}
+                                    />
+
+                                    <Column
+                                        key="feedback"
+                                        header="Feedback"
+                                        style={{ minWidth: "110px" }}
+                                        body={(record) => {
+                                            const docId = getDocId(record);
+                                            const current = feedbackByDoc[docId];
+                                            return (
+                                                <Box sx={{ display: "flex", gap: 0.5, justifyContent: "center" }}>
+                                                    <Tooltip title="Relevant">
+                                                        <IconButton
+                                                            size="small"
+                                                            color={current === "up" ? "primary" : "default"}
+                                                            onClick={() => setDocFeedback(docId, "up")}
+                                                        >
+                                                            <ThumbUpAltOutlinedIcon fontSize="small" />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                    <Tooltip title="Not relevant">
+                                                        <IconButton
+                                                            size="small"
+                                                            color={current === "down" ? "error" : "default"}
+                                                            onClick={() => setDocFeedback(docId, "down")}
+                                                        >
+                                                            <ThumbDownAltOutlinedIcon fontSize="small" />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                </Box>
+                                            );
+                                        }}
+                                    />
+                                </DataTable>
+                            </Box>
+                        )}
+                    </Grid>
                 </Grid>
-            </Grid>
-        </Box>
+            </Box>
+        </PrimeReactProvider>
     );
 };

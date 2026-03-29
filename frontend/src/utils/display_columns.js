@@ -14,13 +14,5 @@ export const displayColumns = [
     {
         id: "Place_Locale Reference",
         name: "Location"
-    },
-    {
-        id: "Report 1_Narrative",
-        name: "Narrative"
-    },
-    {
-        id: "score",
-        name: "Relevancy"
     }
 ]

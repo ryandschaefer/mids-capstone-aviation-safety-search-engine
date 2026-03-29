@@ -1,5 +1,13 @@
 from pydantic import BaseModel, field_validator
-from typing import Optional
+from typing import Optional, Any
+
+class FilterConstraints(BaseModel):
+    matchMode: str
+    value: Any
+
+class FilterInput(BaseModel):
+    operator: str
+    constraints: list[FilterConstraints]
 
 class StartSearchInput(BaseModel):
     query: str
@@ -7,6 +15,7 @@ class StartSearchInput(BaseModel):
     mode: str = "bm25"
     use_qe: bool = False
     use_qe_judge: bool = False
+    metadata_filters: dict[str, FilterInput] | None = None
     
     @field_validator("mode")
     @classmethod
@@ -33,10 +42,12 @@ class StartSearchOutput(BaseModel):
     # data: list[dict]
     cached: bool
     used_queries: Optional[list[str]]
+    total_results: int
     times: dict[str, float]
     
 class RetrieveSearchInput(BaseModel):
     cache_key: str
     page: int = 1
     page_length: int = 10
+    metadata_filters: dict[str, FilterInput] | None = None
     
