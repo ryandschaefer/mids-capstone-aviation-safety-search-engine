@@ -7,6 +7,7 @@ import src.schemas.search as schemas
 from src.controllers.bedrock import query_expansion
 from collections import defaultdict
 import time
+import json
 
 async def get_test_data():
     # Return the top 15 records
@@ -28,7 +29,7 @@ async def start_search(query: str, top_k: int, mode: str, use_qe: bool = False, 
         "use_qe_judge": use_qe_judge
     }
     cache_key = cache.create_key(search_params)
-    cache_value = cache.get_cache(cache_key)
+    cache_value = await cache.get_cache(cache_key)
     if cache_value:
         times["cache_read"] = time.time() - cache_start
         times["api_total"] = time.time() - start
@@ -130,7 +131,7 @@ async def start_search(query: str, top_k: int, mode: str, use_qe: bool = False, 
     # Cache the results
     print(df_retrieved)
     data = df_retrieved.to_dicts()
-    cache.set_cache(cache_key, data)
+    await cache.set_cache(cache_key, data)
         
     # Return the results
     # data = df_results.to_dicts()
@@ -145,18 +146,34 @@ async def start_search(query: str, top_k: int, mode: str, use_qe: bool = False, 
     }
     
 # Retrieve a page of results for a search from the cache
-async def retrieve_results(cache_key: str, page: int, page_length: int) -> list[dict]:
+async def retrieve_results(
+    cache_key: str, page: int, page_length: int, 
+    metadata_filters: dict[str, schemas.FilterInput] | None = None
+) -> list[dict]:
+    # Get data from the cache
+    # and apply metadata filters in parallel
+    cache_data, df_metadata = await asyncio.gather(cache.get_cache(cache_key), data.get_metadata_filters(metadata_filters))
+    
     # Check that the cache key exists and is not expired
-    cache_data = cache.get_cache(cache_key)
     if cache_data is None:
         raise Exception(f"The search with the key `{cache_key}` either does not exist or has expired")
     
     # Extract the page of results
     start = page * page_length
     end = (page + 1) * page_length
-    curr_page = cache_data[start:end]
-    df_page = pl.DataFrame(curr_page)
-    print(df_page)
+    # curr_page = cache_data[start:end]
+    # df_page = pl.DataFrame(curr_page)
+    
+    # Join with metadata filters
+    df_data = pl.DataFrame(cache_data)
+    if df_metadata is not None:
+        # df_page = df_page.join(df_metadata, left_on = "doc_id", right_on = "acn_num_ACN")
+        df_data = df_data.join(df_metadata, left_on = "doc_id", right_on = "acn_num_ACN")
+        
+    # Extract the page of results
+    df_page = df_data \
+        .sort("score", descending = True) \
+        .slice(start, page_length)
     
     # Get the raw records matching the results
     ids = df_page["doc_id"].to_list()
@@ -174,4 +191,8 @@ async def retrieve_results(cache_key: str, page: int, page_length: int) -> list[
     assert len(df) == len(df_page)
     
     records = df.to_dicts()
-    return records
+    return {
+        # "total_results": len(cache_data),
+        "total_results": len(df_data),
+        "data": records
+    }

@@ -1,4 +1,4 @@
-import boto3
+import aioboto3
 import json
 from fastapi import HTTPException
 import os
@@ -8,7 +8,7 @@ client_config = {
     "aws_secret_access_key": os.environ.get("AWS_SECRET_KEY_BEDROCK"),
     "region_name": os.environ.get("AWS_REGION_BEDROCK"),
 }
-bedrock_client = boto3.client("bedrock-runtime", **client_config)
+session = aioboto3.Session(**client_config)
 
 async def run_llm(prompt: str, max_tokens: int = 100) -> str:
     # Configure LLM inputs
@@ -28,17 +28,18 @@ async def run_llm(prompt: str, max_tokens: int = 100) -> str:
     
     try:
         # Generate response from bedrock
-        response = bedrock_client.invoke_model(
-            modelId="us.amazon.nova-pro-v1:0",
-            body=json.dumps(payload),
-            contentType="application/json",
-            accept="application/json",
-        )
+        async with session.client("bedrock-runtime") as bedrock_client:
+            response = await bedrock_client.invoke_model(
+                modelId="us.amazon.nova-pro-v1:0",
+                body=json.dumps(payload),
+                contentType="application/json",
+                accept="application/json",
+            )
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Bedrock error: {e}")
     
     # Extract generated text from bedrock response
-    body = json.loads(response["body"].read())
+    body = json.loads(await response["body"].read())
     text = body["output"]["message"]["content"][0]["text"]
     
     return text

@@ -50,22 +50,40 @@ export const createSearch = async(
  * Call Ryan's GET /search/retrieve (main_driver). Returns the results array for the UI.
  * @param {string} query - Search query
  * @param {number} page - Page of results
- * @param {number} top_k - Results to return per page
+ * @param {number} page_length - Results to return per page
+ * @param {object} metadata_filters - JSON of metadata filters
  */
 export const getSearchResults = async (
-    cache_key, page = 1, page_length = 10
+    cache_key, page = 1, page_length = 10, metadata_filters = {}
 ) => {
     const payload = {
         params: {
             cache_key, page, page_length
         }
     };
+    // Add metadata filters if defined
+    if (metadata_filters) {
+        // Clean out empty/invalid filters
+        const cleanedFilters = Object.fromEntries(
+            Object.entries(metadata_filters).filter(([col, filter]) => 
+                col !== "submit_filters" && 
+                !(filter.constraints.length === 1 && !filter.constraints[0].value)
+            )
+        );
+
+        // Serialize to JSON string so FastAPI can parse it correctly
+        if (Object.keys(cleanedFilters).length > 0) {
+            payload.params.metadata_filters = JSON.stringify(cleanedFilters);
+        }
+    }
+
     const res = await axios.get(`${SEARCH_ENDPOINT}/retrieve`, payload);
     if (res.status !== 200) {
         console.error(`POST ${SEARCH_ENDPOINT} failed with status ${res.status}`);
         throw new Error(res.statusText);
     }
     return {
-        data: Array.isArray(res.data) ? res.data : []
+        data: Array.isArray(res.data?.data) ? res.data.data : [],
+        total_results: Number(res.data.total_results)
     };
 };

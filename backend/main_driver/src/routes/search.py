@@ -18,5 +18,5 @@ async def start_search(body: schemas.StartSearchInput) -> schemas.StartSearchOut
 
 # Run a search
 @router.get("/retrieve")
-async def retrieve_results(body: Annotated[schemas.RetrieveSearchInput, Query()]) -> list[dict]:
-    return await controller.retrieve_results(body.cache_key, body.page, body.page_length)
+async def retrieve_results(body: Annotated[schemas.RetrieveSearchInput, Query()]) -> schemas.RetrieveSearchOutput:
+    return await controller.retrieve_results(body.cache_key, body.page, body.page_length, body.metadata_filters)

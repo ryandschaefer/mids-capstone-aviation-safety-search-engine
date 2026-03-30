@@ -1,5 +1,6 @@
 import polars as pl
 import os
+import src.schemas.search as schemas
 
 # S3 path where ASRS is stored
 S3_BUCKET = os.environ.get("S3_BUCKET")
@@ -32,3 +33,54 @@ async def get_records_by_id(ids: list) -> pl.DataFrame:
         .filter(pl.col("acn_num_ACN").is_in(ids)) \
         .collect_async(gevent=False)
     return df
+
+# Get records that match the given metadata filters
+async def get_metadata_filters(metadata_filters: dict[str, schemas.FilterInput] | None = None, only_ids: bool = True) -> pl.DataFrame | None:
+    if metadata_filters:
+        lf = scan_data()
+        
+        # Apply the filters for each column
+        for col, filters in metadata_filters.items():
+            # Convert all constraints to a polars expression
+            constraint_expressions: list[pl.Expr] = []
+            for constraint in filters.constraints:
+                match constraint.matchMode:
+                    case "contains":
+                        constraint_expressions.append(pl.col(col).str.contains(str(constraint.value), literal=True))
+                    case "notContains":
+                        constraint_expressions.append(pl.col(col).str.contains(str(constraint.value), literal=True).not_())
+                    case "startsWith":
+                        constraint_expressions.append(pl.col(col).str.starts_with(str(constraint.value)))
+                    case "endsWith":
+                        constraint_expressions.append(pl.col(col).str.ends_with(str(constraint.value)))
+                    case "equals":
+                        constraint_expressions.append(pl.col(col) == constraint.value)
+                    case "notEquals":
+                        constraint_expressions.append(pl.col(col) != constraint.value)
+            
+            # Move on if no expressions for this column
+            if not constraint_expressions:
+                continue
+            
+            # Create expression with all filters for this column
+            col_expression = constraint_expressions[0]
+            if filters.operator.lower() == "and":
+                for expr in constraint_expressions[1:]:
+                    col_expression = col_expression & expr
+            else:
+                for expr in constraint_expressions[1:]:
+                    col_expression = col_expression | expr
+                    
+            # Apply filters to data
+            lf = lf.filter(col_expression)
+            
+        # Optionally only return ids of relevant reports
+        if only_ids:
+            lf = lf.select("acn_num_ACN")
+            
+        # Collect filtered data
+        df = await lf.collect_async(gevent=False)
+        
+        return df
+    else:
+        return None

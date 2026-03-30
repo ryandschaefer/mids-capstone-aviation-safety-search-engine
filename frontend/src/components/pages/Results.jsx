@@ -13,6 +13,7 @@ import { displayColumns } from "../../utils";
 import { useNavigate } from "react-router-dom";
 import humanizeDuration from "humanize-duration";
 import { MultiSelect } from "primereact/multiselect";
+import { X } from "@mui/icons-material";
 
 const primeReactConfig = {
     hideOverlaysOnDocumentScrolling: false
@@ -147,6 +148,8 @@ export const Results = () => {
                 use_qe_judge: useQeJudge,
             })
                 .then(response => {
+                    // Reset metadata filters for new query
+                    initMetadataFilters();
                     // Save search metadata
                     setCacheKey(response.cache_key);
                     setIsCached(response.cached);
@@ -186,10 +189,11 @@ export const Results = () => {
     const getPage = (cacheKey, currentPage, pageLength) => {
         if (cacheKey) {
             setLoading(true);
-            getSearchResults(cacheKey, currentPage+1, pageLength)
+            getSearchResults(cacheKey, currentPage, pageLength, metadataFilters)
                 .then((response) => {
                     const rows = Array.isArray(response?.data) ? response.data : [];
                     setSearchResults(rows);
+                    setTotalResults(response.total_results);
                 })
                 .finally(() => {
                     setLoading(false);
@@ -222,8 +226,31 @@ export const Results = () => {
         }
     };
 
+    const initMetadataFilters = () => {
+        const _filters = { submit_filters: false };
+
+        allColumns.forEach(col => {
+            _filters[col.value] = {
+                operator: FilterOperator.AND,
+                constraints: [{
+                    value: null,
+                    matchMode: FilterMatchMode.EQUALS
+                }],
+                maxConstraints: Infinity
+            }
+        });
+
+        setMetadataFilters(_filters);
+    }
+
+    const applyMetadataFilters = (event) => {
+        setMetadataFilters({
+            ...event.filters,
+            submit_filters: true
+        })
+    }
+
     const renderTableColumns = useMemo(() => (
-        
             visibleColumns.map((col, i) => {
                 const column = allColumns.filter(x => x.value === col)[0];
                 if (column) {
@@ -265,7 +292,6 @@ export const Results = () => {
                 } else {
                     return <></>;
                 }
-                
             })
     ), [visibleColumns]);
 
@@ -282,6 +308,17 @@ export const Results = () => {
     useEffect(() => {
         getPage(cacheKey, currentPage, pageLength);
     }, [currentPage, pageLength]);
+
+    useEffect(() => {
+        if (metadataFilters.submit_filters) {
+            // Load the first page of results for the new search
+            if (currentPage === 0) {
+                getPage(cacheKey, 0, pageLength);
+            } else {
+                setCurrentPage(0);
+            }
+        }
+    }, [metadataFilters]);
 
     const onColumnToggle = (event) => {
         const selectedColumns = event.value;
@@ -382,7 +419,7 @@ export const Results = () => {
                             <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", mt: { xs: 3, sm: "50px" }, width: "100%" }}>
                                 <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "60vh" }}>
                                     <div className="spinner-border" style={{ width: "5rem", height: "5rem" }} role="status">
-                                        <span className="sr-only">Loading</span>
+                                        <span className="sr-only"></span>
                                     </div>
                                 </div>
                             </Box>
@@ -454,7 +491,7 @@ export const Results = () => {
                                     paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
                                     currentPageReportTemplate="Showing {first} to {last} of {totalRecords} entries"
                                     filters={metadataFilters}
-                                    onFilter={event => setMetadataFilters(event.filters)}
+                                    onFilter={applyMetadataFilters}
                                 >
                                     { renderTableColumns }
 

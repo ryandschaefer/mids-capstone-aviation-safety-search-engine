@@ -1,13 +1,23 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 from typing import Optional, Any
+import json
 
-class FilterConstraints(BaseModel):
+class FilterConstraint(BaseModel):
     matchMode: str
     value: Any
 
 class FilterInput(BaseModel):
     operator: str
-    constraints: list[FilterConstraints]
+    constraints: list[FilterConstraint]
+    
+    @field_validator("operator")
+    @classmethod
+    def is_valid_operator(cls, value: str) -> str:
+        valid_operators = ["and", "or"]
+        if value.lower() in ["and", "or"]:
+            return value
+        else:
+            raise ValueError(f"`{ value }` is not a valid retrieval mode. Choose one of these valid options: " + ", ".join(valid_operators))
 
 class StartSearchInput(BaseModel):
     query: str
@@ -51,3 +61,17 @@ class RetrieveSearchInput(BaseModel):
     page_length: int = 10
     metadata_filters: dict[str, FilterInput] | None = None
     
+    @model_validator(mode="before")
+    @classmethod
+    def parse_metadata_filters(cls, values):
+        mf = values.get("metadata_filters")
+        if isinstance(mf, str):
+            try:
+                values["metadata_filters"] = json.loads(mf)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"metadata_filters is not valid JSON: {e}")
+        return values
+    
+class RetrieveSearchOutput(BaseModel):
+    total_results: int
+    data: list[dict]
