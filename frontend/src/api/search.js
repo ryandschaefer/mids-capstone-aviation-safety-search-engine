@@ -2,6 +2,7 @@ import { BASE_ENDPOINT } from "./utils";
 import axios from "axios";
 
 const SEARCH_ENDPOINT = `${BASE_ENDPOINT}/search`;
+const DB_ENDPOINT = `${BASE_ENDPOINT}/db`;
 
 export const getTestData = async () => {
     const res = await axios.get(`${SEARCH_ENDPOINT}/test`);
@@ -59,5 +60,33 @@ export const startSearch = async (
     };
     const res = await axios.post(SEARCH_ENDPOINT, payload);
     if (res.status !== 200) throw new Error(res.statusText);
+    return res.data;
+};
+
+export const saveFeedback = async ({
+    doc_id,
+    chunk_id = null,
+    feedback_value,
+    query_text = null,
+    mode = null,
+    use_qe = false,
+    use_qe_judge = false,
+    notes = null,
+}) => {
+    const payload = {
+        doc_id,
+        chunk_id,
+        feedback_value,
+        query_text,
+        mode,
+        use_qe,
+        use_qe_judge,
+        notes,
+    };
+    const res = await axios.post(`${DB_ENDPOINT}/feedback`, payload);
+    if (res.status !== 200) {
+        console.error(`POST ${DB_ENDPOINT}/feedback failed with status ${res.status}`);
+        throw new Error(res.statusText);
+    }
     return res.data;
 };

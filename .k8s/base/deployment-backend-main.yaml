@@ -42,6 +42,8 @@ spec:
                 secretKeyRef:
                   name: aws-credentials
                   key: AWS_REGION_BEDROCK
+            - name: SQLITE_DB_PATH
+              value: /data/aviation_safety.db
           resources:
             requests:
               cpu: 100m
@@ -51,6 +53,9 @@ spec:
               memory: 512Mi
           ports:
             - containerPort: 8000
+          volumeMounts:
+            - name: sqlite-data
+              mountPath: /data
           readinessProbe:
             httpGet:
               scheme: HTTP
@@ -72,3 +77,6 @@ spec:
               port: 8000
             failureThreshold: 30
             periodSeconds: 10
+      volumes:
+        - name: sqlite-data
+          emptyDir: {}

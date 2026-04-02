@@ -7,7 +7,7 @@ import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import ThumbUpAltOutlinedIcon from "@mui/icons-material/ThumbUpAltOutlined";
 import ThumbDownAltOutlinedIcon from "@mui/icons-material/ThumbDownAltOutlined";
 import { MetadataFilters, SearchBar } from "../common";
-import { getSearchResults } from "../../api";
+import { getSearchResults, saveFeedback } from "../../api";
 import { displayColumns } from "../../utils";
 import { useNavigate } from "react-router-dom";
 import humanizeDuration from "humanize-duration";
@@ -177,13 +177,31 @@ export const Results = () => {
         setSearchResults(allResults.slice(start, start + pageLength));
     };
 
-    const setDocFeedback = (docId, value) => {
+    const setDocFeedback = async (docId, value, record = null) => {
         if (!docId) return;
+
         setFeedbackByDoc((prev) => {
             const next = { ...prev, [docId]: value };
             localStorage.setItem(FEEDBACK_KEY, JSON.stringify(next));
             return next;
         });
+
+        const parsedChunkId = Number(record?.chunk_id);
+        const chunkId = Number.isFinite(parsedChunkId) ? parsedChunkId : null;
+
+        try {
+            await saveFeedback({
+                doc_id: docId,
+                chunk_id: chunkId,
+                feedback_value: value,
+                query_text: userQuery || null,
+                mode: searchMode,
+                use_qe: useQe,
+                use_qe_judge: useQeJudge,
+            });
+        } catch (err) {
+            console.warn("Failed to persist feedback in SQL database", err);
+        }
     };
 
     const getDocId = (record) => String(record.doc_id ?? record.acn_num_ACN ?? "");
@@ -414,7 +432,7 @@ export const Results = () => {
                                                     <IconButton
                                                         size="small"
                                                         color={current === "up" ? "primary" : "default"}
-                                                        onClick={() => setDocFeedback(docId, "up")}
+                                                        onClick={() => setDocFeedback(docId, "up", record)}
                                                     >
                                                         <ThumbUpAltOutlinedIcon fontSize="small" />
                                                     </IconButton>
@@ -423,7 +441,7 @@ export const Results = () => {
                                                     <IconButton
                                                         size="small"
                                                         color={current === "down" ? "error" : "default"}
-                                                        onClick={() => setDocFeedback(docId, "down")}
+                                                        onClick={() => setDocFeedback(docId, "down", record)}
                                                     >
                                                         <ThumbDownAltOutlinedIcon fontSize="small" />
                                                     </IconButton>
