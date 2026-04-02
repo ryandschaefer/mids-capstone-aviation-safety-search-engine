@@ -99,9 +99,9 @@ export const Search = () => {
                                 label="Search engine"
                                 onChange={(event) => setSearchMode(event.target.value)}
                             >
-                                <MenuItem value="bm25">BM25 (keyword / lexical)</MenuItem>
-                                <MenuItem value="hybrid">Hybrid (BM25 + embeddings)</MenuItem>
-                                <MenuItem value="embeddings">Embeddings (semantic)</MenuItem>
+                                <MenuItem value="bm25">Quick Search (BM25)</MenuItem>
+                                <MenuItem value="embeddings">Concept Search (Embeddings)</MenuItem>
+                                <MenuItem value="hybrid">Deeper Search (Hybrid)</MenuItem>
                             </Select>
                         </FormControl>
 
@@ -122,10 +122,10 @@ export const Search = () => {
                                 <strong>Quick search:</strong> BM25 (fastest, best for exact terms)
                             </Typography>
                             <Typography variant="caption" sx={{ display: "block", mb: 0.4 }}>
-                                <strong>Deeper search:</strong> Hybrid (balanced precision + broader coverage)
+                                <strong>Concept search:</strong> Embeddings (finds similar meaning, even with different wording)
                             </Typography>
                             <Typography variant="caption" sx={{ display: "block", mb: 0.4 }}>
-                                <strong>Concept search:</strong> Embeddings (finds similar meaning, even with different wording)
+                                <strong>Deeper search:</strong> Hybrid (balanced precision + broader coverage)
                             </Typography>
                             <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
                                 <strong>LLM Query Enhancement:</strong> helps when your query is short or vague. <strong>LLM Judge:</strong> extra filtering step, usually better precision but slower response.
@@ -176,7 +176,7 @@ export const Search = () => {
                 </Box>
 
                 <Box sx={{ mt: 2 }}>
-                    <MetadataFilters />
+                    {/* <MetadataFilters /> */}
                 </Box>
             </Paper>
         </Box>

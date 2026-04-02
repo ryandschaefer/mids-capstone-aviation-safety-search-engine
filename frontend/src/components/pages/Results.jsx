@@ -8,7 +8,7 @@ import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import ThumbUpAltOutlinedIcon from "@mui/icons-material/ThumbUpAltOutlined";
 import ThumbDownAltOutlinedIcon from "@mui/icons-material/ThumbDownAltOutlined";
 import { allColumns, MetadataFilters, SearchBar } from "../common";
-import { createSearch, getSearchResults } from "../../api";
+import { createSearch, getSearchResults, downloadSearchResults } from "../../api";
 import { displayColumns } from "../../utils";
 import { useNavigate } from "react-router-dom";
 import humanizeDuration from "humanize-duration";
@@ -125,6 +125,7 @@ export const Results = () => {
     const [expandedQuery, setExpandedQuery] = useState("");
     const [cacheKey, setCacheKey] = useState("");
     const [isCached, setIsCached] = useState(false);
+    const [disableFileDownload, setDisableFileDownload] = useState(false);
     const [metadataFilters, setMetadataFilters] = useState({});
     const [visibleColumns, setVisibleColumns] = useState([
         "acn_num_ACN", "Time_Date", "Time.1_Local Time Of Day", "Place_Locale Reference"
@@ -372,9 +373,9 @@ export const Results = () => {
                                     }}
                                     disabled={loading}
                                 >
-                                    <MenuItem value="bm25">BM25</MenuItem>
-                                    <MenuItem value="hybrid">Hybrid</MenuItem>
-                                    <MenuItem value="embeddings">Embeddings</MenuItem>
+                                    <MenuItem value="bm25">Quick Search (BM25)</MenuItem>
+                                    <MenuItem value="embeddings">Concept Search (Embeddings)</MenuItem>
+                                    <MenuItem value="hybrid">Deeper Search (Hybrid)</MenuItem>
                                 </Select>
                             </FormControl>
                             <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-start", mr: 1 }}>
@@ -405,12 +406,12 @@ export const Results = () => {
                                     label="LLM Relevance Judge"
                                 />
                             </Box>
-                            <MetadataFilters
+                            {/* <MetadataFilters
                                 disabled={loading}
                                 filters={filters}
                                 onFiltersChange={setFilters}
                                 onApply={() => {}}
-                            />
+                            /> */}
                         </Box>
                     </Grid>
 
@@ -448,31 +449,29 @@ export const Results = () => {
                                             <Chip size="small" color={useQeJudge ? "primary" : "default"} label={`LLM Judge: ${useQeJudge ? "On" : "Off"}`} />
                                         </Box>
                                     </Box>
-                                    {totalResults > 0 && (
-                                        <Button
-                                            size="small"
-                                            variant="outlined"
-                                            startIcon={<FileDownloadIcon />}
-                                            onClick={() => {
-                                                const headers = displayColumns.map((c) => c.name);
-                                                const escape = (v) => {
-                                                    const s = v == null ? "" : String(v);
-                                                    return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
-                                                };
-                                                const rows = searchResults.map((r) => displayColumns.map((c) => escape(r[c.id])).join(","));
-                                                const csv = [headers.join(","), ...rows].join("\n");
-                                                const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-                                                const url = URL.createObjectURL(blob);
-                                                const a = document.createElement("a");
-                                                a.href = url;
-                                                a.download = `asrs-results-${userQuery.replace(/\s+/g, "-").slice(0, 30)}.csv`;
-                                                a.click();
-                                                URL.revokeObjectURL(url);
-                                            }}
-                                        >
-                                            Export CSV
-                                        </Button>
-                                    )}
+
+                                    <div>
+                                        {disableFileDownload === true && (
+                                            <div className="spinner-border" style={{ width: "1rem", height: "1rem" }} role="status">
+                                                <span className="sr-only"></span>
+                                            </div>
+                                        )}
+                                        {totalResults > 0 && (
+                                            <Button
+                                                size="small"
+                                                variant="outlined"
+                                                startIcon={<FileDownloadIcon />}
+                                                disabled={disableFileDownload}
+                                                onClick={() => {
+                                                    setDisableFileDownload(true);
+                                                    downloadSearchResults(cacheKey, metadataFilters)
+                                                        .finally(() => setDisableFileDownload(false));
+                                                }}
+                                            >
+                                                Export CSV
+                                            </Button>
+                                        )}
+                                    </div>
                                 </Box>
                                 <DataTable
                                     value={searchResults}

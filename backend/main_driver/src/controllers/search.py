@@ -7,7 +7,8 @@ import src.schemas.search as schemas
 from src.controllers.bedrock import query_expansion
 from collections import defaultdict
 import time
-import json
+from fastapi.responses import StreamingResponse
+import io
 
 async def get_test_data():
     # Return the top 15 records
@@ -145,11 +146,11 @@ async def start_search(query: str, top_k: int, mode: str, use_qe: bool = False, 
         "times": times
     }
     
-# Retrieve a page of results for a search from the cache
-async def retrieve_results(
-    cache_key: str, page: int, page_length: int, 
+# Retrieve cached results from s3
+async def retrieve_page(
+    cache_key: str, paginate: bool, page: int = 0, page_length: int = 10, 
     metadata_filters: dict[str, schemas.FilterInput] | None = None
-) -> list[dict]:
+) -> tuple[pl.DataFrame, int]:
     # Get data from the cache
     # and apply metadata filters in parallel
     cache_data, df_metadata = await asyncio.gather(cache.get_cache(cache_key), data.get_metadata_filters(metadata_filters))
@@ -158,22 +159,15 @@ async def retrieve_results(
     if cache_data is None:
         raise Exception(f"The search with the key `{cache_key}` either does not exist or has expired")
     
-    # Extract the page of results
-    start = page * page_length
-    end = (page + 1) * page_length
-    # curr_page = cache_data[start:end]
-    # df_page = pl.DataFrame(curr_page)
-    
     # Join with metadata filters
     df_data = pl.DataFrame(cache_data)
     if df_metadata is not None:
-        # df_page = df_page.join(df_metadata, left_on = "doc_id", right_on = "acn_num_ACN")
         df_data = df_data.join(df_metadata, left_on = "doc_id", right_on = "acn_num_ACN")
         
     # Extract the page of results
-    df_page = df_data \
-        .sort("score", descending = True) \
-        .slice(start, page_length)
+    df_page = df_data.sort("score", descending = True)
+    if paginate:
+        df_page = df_page.slice(page*page_length, page_length)
     
     # Get the raw records matching the results
     ids = df_page["doc_id"].to_list()
@@ -190,9 +184,37 @@ async def retrieve_results(
         .sort("score", descending=True)
     assert len(df) == len(df_page)
     
+    return df, len(df_data)
+    
+# Retrieve a page of results for a search from the cache
+async def retrieve_results(
+    cache_key: str, page: int, page_length: int, 
+    metadata_filters: dict[str, schemas.FilterInput] | None = None
+) -> list[dict]:
+    # Retrieve a page of results from s3
+    df, total_results = await retrieve_page(cache_key, True, page, page_length, metadata_filters)
+    
     records = df.to_dicts()
     return {
-        # "total_results": len(cache_data),
-        "total_results": len(df_data),
+        "total_results": total_results,
         "data": records
     }
+    
+# Download cached results as a csv
+async def download_results(cache_key: str, metadata_filters: dict[str, schemas.FilterInput] | None = None) -> StreamingResponse:
+    # Retreive all results from s3
+    df, _ = await retrieve_page(cache_key, False, metadata_filters=metadata_filters)
+    
+    # Drop irrelevant columns
+    df = df.drop(["score", "chunk_id"], strict = False)
+    
+    # Write csv of results to buffer
+    buffer = io.BytesIO()
+    df.write_csv(buffer)
+    buffer.seek(0)
+    
+    return StreamingResponse(
+        buffer,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=results.csv"}
+    )

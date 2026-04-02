@@ -79,11 +79,58 @@ export const getSearchResults = async (
 
     const res = await axios.get(`${SEARCH_ENDPOINT}/retrieve`, payload);
     if (res.status !== 200) {
-        console.error(`POST ${SEARCH_ENDPOINT} failed with status ${res.status}`);
+        console.error(`GET ${SEARCH_ENDPOINT}/retrieve failed with status ${res.status}`);
         throw new Error(res.statusText);
     }
     return {
         data: Array.isArray(res.data?.data) ? res.data.data : [],
         total_results: Number(res.data.total_results)
     };
+};
+
+/**
+ * Call Ryan's GET /search/download (main_driver). Returns the results array for the UI.
+ * @param {string} query - Search query
+ * @param {number} page - Page of results
+ * @param {number} page_length - Results to return per page
+ * @param {object} metadata_filters - JSON of metadata filters
+ */
+export const downloadSearchResults = async (
+    cache_key, metadata_filters = {}
+) => {
+    const payload = {
+        responseType: "blob",
+        params: {
+            cache_key
+        }
+    };
+    // Add metadata filters if defined
+    if (metadata_filters) {
+        // Clean out empty/invalid filters
+        const cleanedFilters = Object.fromEntries(
+            Object.entries(metadata_filters).filter(([col, filter]) => 
+                col !== "submit_filters" && 
+                !(filter.constraints.length === 1 && !filter.constraints[0].value)
+            )
+        );
+
+        // Serialize to JSON string so FastAPI can parse it correctly
+        if (Object.keys(cleanedFilters).length > 0) {
+            payload.params.metadata_filters = JSON.stringify(cleanedFilters);
+        }
+    }
+
+    const res = await axios.get(`${SEARCH_ENDPOINT}/download`, payload);
+    if (res.status !== 200) {
+        console.error(`GET ${SEARCH_ENDPOINT}/download failed with status ${res.status}`);
+        throw new Error(res.statusText);
+    }
+    
+    const url = URL.createObjectURL(res.data);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "results.csv";
+    a.click();
+
+    URL.revokeObjectURL(url);
 };
