@@ -1,7 +1,8 @@
 from datetime import datetime
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from src.routes import search
+from src.routes import search, db
+from src.models.db import init_db
 import os
 
 # FRONTEND_URL = os.environ.get("FRONTEND_URL")
@@ -10,6 +11,12 @@ FRONTEND_URL = "*"
 # Initialize app
 app = FastAPI()
 
+
+@app.on_event("startup")
+async def startup_event():
+    init_db()
+
+
 # Health endpoint to verify server is running
 @app.get("/health")
 async def health():
@@ -17,6 +24,7 @@ async def health():
         "service": "main",
         "time": datetime.now()
     }
+
 
 # Add CORS middleware to choose allowed origins
 app.add_middleware(
@@ -28,3 +36,4 @@ app.add_middleware(
 )
 
 app.include_router(search.router)
+app.include_router(db.router)
