@@ -2,6 +2,9 @@ import aioboto3
 import json
 from fastapi import HTTPException
 import os
+import asyncio
+from botocore.exceptions import ClientError
+import random
 
 client_config = {
     "aws_access_key_id": os.environ.get("AWS_ACCESS_KEY_BEDROCK"),
@@ -10,7 +13,10 @@ client_config = {
 }
 session = aioboto3.Session(**client_config)
 
-async def run_llm(prompt: str, max_tokens: int = 100) -> str:
+# Create a semaphore to limit the number of concurrent LLM calls
+BEDROCK_SEMAPHORE = asyncio.Semaphore(5)
+
+async def run_llm(prompt: str, max_tokens: int = 100, max_retries: int = 5) -> str:
     # Configure LLM inputs
     payload = {
         "messages": [{
@@ -23,26 +29,37 @@ async def run_llm(prompt: str, max_tokens: int = 100) -> str:
             "maxTokens": max_tokens
         },
     }
-    print("LLM payload:")
-    print(json.dumps(payload, indent = 4))
+    # print("LLM payload:")
+    # print(json.dumps(payload, indent = 4))
     
-    try:
-        # Generate response from bedrock
-        async with session.client("bedrock-runtime") as bedrock_client:
-            response = await bedrock_client.invoke_model(
-                modelId="us.amazon.nova-pro-v1:0",
-                body=json.dumps(payload),
-                contentType="application/json",
-                accept="application/json",
-            )
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Bedrock error: {e}")
-    
-    # Extract generated text from bedrock response
-    body = json.loads(await response["body"].read())
-    text = body["output"]["message"]["content"][0]["text"]
-    
-    return text
+    for attempt in range(max_retries):
+        try:
+            async with BEDROCK_SEMAPHORE:
+                async with session.client("bedrock-runtime") as bedrock_client:
+                    # Generate response from bedrock
+                    response = await bedrock_client.invoke_model(
+                        modelId="us.amazon.nova-pro-v1:0",
+                        body=json.dumps(payload),
+                        contentType="application/json",
+                        accept="application/json",
+                    )
+                
+            # Extract generated text from bedrock response
+            body = json.loads(await response["body"].read())
+            text = body["output"]["message"]["content"][0]["text"]
+            
+            return text
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "ThrottlingException":
+                wait = (2 ** attempt) + random.uniform(0, 1)
+                print(f"  [LLM] Throttled, retrying in {wait:.2f}s (attempt {attempt+1})")
+                await asyncio.sleep(wait)
+            else:
+                raise HTTPException(status_code=502, detail=f"Bedrock error: {e}")
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Bedrock error: {e}")
+            
+    raise Exception(f"Bedrock failed to give a response in {max_retries} attempts")
 
 async def query_expansion_judge(original_query: str, expanded_query: str) -> str:
     # Prompt template for LLM judge of query expansion
@@ -153,7 +170,7 @@ async def judge_relevance(query: str, parent_doc_id: str, narrative: str, judge_
     try:
         # Run LLM with prompt template
         answer = (await run_llm(prompt, max_tokens=5)).strip().upper()
-        print(f'  [Judge] Answer for doc {parent_doc_id}: {answer}')
+        # print(f'  [Judge] Answer for doc {parent_doc_id}: {answer}')
         result = answer.startswith('YES')
     except Exception as e:
         # Assume not relevant if there is an error
