@@ -95,7 +95,7 @@ async def feedback_approach_1(
     query: str, search_q: str, mode: str, times: defaultdict[str, float],
     init_pool: int = 100, k_increment: int = 50, max_pool: int = 5_000,
     precision_threshold: float = 0.5
-) -> pl.DataFrame:
+) -> tuple[pl.DataFrame, int]:
     """
     Precision-based expansion loop — collect judge-confirmed relevant docs only.
     Keeps fetching in increments of A1_K_INCREMENT until A1_TARGET_K relevant docs
@@ -106,8 +106,10 @@ async def feedback_approach_1(
     relevant_cache = {}
     relevant_docs = []
     all_docs = []
+    num_iters = 0
 
-    while current_pool < max_pool:
+    while current_pool <= max_pool:
+        print(f"\nStarting iteration { num_iters+1 }. Retrieving { current_pool } chunks...")
         # Retrieve a new set of documents
         df_ranked = await retrieve_docs(search_q, current_pool, mode, times)
         if all_docs:
@@ -119,14 +121,26 @@ async def feedback_approach_1(
         if not new_batch:
             break
 
+        # Get narratives for the new batch of documents
+        df_narratives = await db.get_narratives(new_batch)
         # Judge relevant documents and compute precision
-        batch_relevant = [pid for pid in new_batch if judge_relevance(query, pid, relevant_cache)]
+        judge_results = await asyncio.gather(*[
+            judge_relevance(query, row["doc_id"], row["narrative"], relevant_cache) 
+            for row in df_narratives.iter_rows(named = True)
+        ])
+        df_narratives = df_narratives.with_columns(
+            pl.Series("is_relevant", judge_results)
+        )
+        batch_relevant = df_narratives.filter(pl.col("is_relevant") == True)["doc_id"].to_list()
         precision = len(batch_relevant) / len(new_batch)
+        print(f"{ len(batch_relevant) }/{ len(new_batch) } documents are relevant. Precision = {precision:.3f}")
         # Only keep relevant docs
         relevant_docs.extend(batch_relevant)
+        num_iters += 1
 
         # Break early if precision drops below threshold
         if precision < precision_threshold:
+            print(f"Precision is below the treshold of { precision_threshold }. Stopping prematurely")
             break
         
         # Prep for next iteration
@@ -134,7 +148,7 @@ async def feedback_approach_1(
         current_pool += k_increment
 
     # Return all relevant documents
-    return df_ranked.filter(pl.col("doc_id").is_in(relevant_docs))
+    return df_ranked.filter(pl.col("doc_id").is_in(relevant_docs)), num_iters
 
 async def start_search(
     query: str, top_k: int, mode: str, 
@@ -171,11 +185,16 @@ async def start_search(
     # Use query expansion
     if use_qe:
         qe_start = time.time()
-        query = await query_expansion(query, use_judge = use_qe_judge)
+        search_query = await query_expansion(query, use_judge = use_qe_judge)
         times["query_expansion"] = time.time() - qe_start
+    else:
+        search_query = query
     
+    num_iters = None
     if use_feedback_1:
-        df_retrieved = await feedback_approach_1(query, )
+        loop_start = time.time()
+        df_retrieved, num_iters = await feedback_approach_1(query, search_query, mode, times, max_pool=200)
+        times["feedback_loop"] = time.time() - loop_start
     else:
         df_retrieved = await retrieve_docs(query, top_k, mode, times)
     
@@ -192,7 +211,8 @@ async def start_search(
         "cached": False,
         "total_results": len(data),
         "used_queries": [query],
-        "times": times
+        "times": times,
+        "feedback_iterations": num_iters
     }
     
 # Retrieve cached results from s3

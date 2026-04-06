@@ -68,4 +68,18 @@ async def get_relevant_chunks(doc_ids: list[str], chunk_ids: list[list[int]]) ->
         .with_columns(pl.col("doc_id").cast(pl.String)) \
         .group_by("doc_id") \
         .agg(chunks = pl.col("text"))
+        
+# Retrieve narratives for a set of documents by id
+async def get_narratives(doc_ids: list[str]) -> pl.DataFrame:
+    formatted_ids = ", ".join(list(map(lambda x: str(x), doc_ids)))
+    query = f'''
+        SELECT *
+        FROM narratives
+        WHERE doc_id IN ({ formatted_ids })
+    '''
+    sql_output = await run_query(query)
+    
+    # Convert to polars
+    return pl.DataFrame(sql_output) \
+        .with_columns(pl.col("doc_id").cast(pl.String))
             

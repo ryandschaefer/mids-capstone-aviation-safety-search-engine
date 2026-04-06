@@ -54,6 +54,7 @@ class StartSearchOutput(BaseModel):
     used_queries: Optional[list[str]]
     total_results: int
     times: dict[str, float]
+    feedback_iterations: int | None = None
     
 class RetrieveSearchInput(BaseModel):
     cache_key: str

@@ -129,7 +129,7 @@ async def query_expansion(query: str, use_judge: bool = False) -> str:
     return query_expanded
 
 # Judge if a given narrative is relevant to the query or not
-async def judge_relevance(query: str, parent_doc_id: str, judge_cache: dict[tuple[str, str], bool] = {}) -> bool:
+async def judge_relevance(query: str, parent_doc_id: str, narrative: str, judge_cache: dict[tuple[str, str], bool] = {}) -> bool:
     """Return True if Nova Pro judges the document relevant to the query."""
     _RELEVANCE_JUDGE_TEMPLATE = (
         'You are an aviation safety expert.\n'
@@ -144,7 +144,6 @@ async def judge_relevance(query: str, parent_doc_id: str, judge_cache: dict[tupl
         return judge_cache[key]
     
     # Say no if narrative is empty
-    narrative = text_lookup.get(parent_doc_id, '')
     if not narrative:
         judge_cache[key] = False
         return False
