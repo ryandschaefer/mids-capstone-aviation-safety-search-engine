@@ -25,7 +25,7 @@ class StartSearchInput(BaseModel):
     mode: str = "bm25"
     use_qe: bool = False
     use_qe_judge: bool = False
-    metadata_filters: dict[str, FilterInput] | None = None
+    use_feedback_1: bool = False
     
     @field_validator("mode")
     @classmethod

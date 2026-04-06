@@ -34,7 +34,6 @@ async def get_embedding_results(query: str, top_k: int = 50) -> ServiceOutput:
         "query": query,
         "top_k": top_k
     }
-    print(EMBEDDING_ENDPOINT)
     
     response = await http_client.get(f"{ EMBEDDING_ENDPOINT }/search", params = query_params)
     

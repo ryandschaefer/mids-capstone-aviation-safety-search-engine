@@ -15,7 +15,7 @@ async def get_test_data():
 # Run a search
 @router.post("")
 async def start_search(body: schemas.StartSearchInput) -> schemas.StartSearchOutput:
-    return await controller.start_search(body.query, body.top_k, body.mode, body.use_qe, body.use_qe_judge)
+    return await controller.start_search(body.query, body.top_k, body.mode, body.use_qe, body.use_qe_judge, body.use_feedback_1)
 
 # Retrieve paginated results from a search
 @router.get("/retrieve")

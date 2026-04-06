@@ -3,8 +3,9 @@ import polars as pl
 import src.models.search as model
 import src.models.cache as cache
 import src.models.data as data
+import src.models.db as db
 import src.schemas.search as schemas
-from src.controllers.bedrock import query_expansion
+from src.controllers.bedrock import query_expansion, judge_relevance
 from collections import defaultdict
 import time
 from fastapi.responses import StreamingResponse
@@ -15,40 +16,9 @@ async def get_test_data():
     df = await data.get_sample_data()
     return df.to_dicts()
 
-async def start_search(query: str, top_k: int, mode: str, use_qe: bool = False, use_qe_judge: bool = False) -> schemas.StartSearchOutput:
-    start = time.time()
+async def retrieve_docs(query: str, top_k: int, mode: str, times: defaultdict[str, float]) -> pl.DataFrame:
     service_names: list[str] = []
     service_list = []
-    times = defaultdict(float)
-    
-    # Check if the search has been cached
-    cache_start = time.time()
-    search_params = {
-        "query": query,
-        "mode": mode,
-        "use_qe": use_qe,
-        "use_qe_judge": use_qe_judge
-    }
-    cache_key = cache.create_key(search_params)
-    cache_value = await cache.get_cache(cache_key)
-    if cache_value:
-        times["cache_read"] = time.time() - cache_start
-        times["api_total"] = time.time() - start
-        return {
-            "cache_key": cache_key,
-            "cached": True,
-            "total_results": len(cache_value),
-            "times": times,
-            "used_queries": []
-        }
-    else:
-        times["cache_read"] = time.time() - cache_start
-    
-    # Use query expansion
-    if use_qe:
-        qe_start = time.time()
-        query = await query_expansion(query, use_judge = use_qe_judge)
-        times["query_expansion"] = time.time() - qe_start
     
     # Determine which retrieval mode is being used
     retrieval_start = time.time()
@@ -78,14 +48,14 @@ async def start_search(query: str, top_k: int, mode: str, use_qe: bool = False, 
         
     # Wait for all services to execute
     service_results: list[schemas.ServiceOutput] = await asyncio.gather(*service_list)
-    times["retrieval"] = time.time() - retrieval_start
+    times["retrieval"] += time.time() - retrieval_start
     
     synthesis_start = time.time()
     # Extract service outputs
     outputs = defaultdict(pl.DataFrame)
     for name, results in zip(service_names, service_results):
         outputs[name] = pl.DataFrame(results["data"])
-        times[name] = results["time"]
+        times[name] += results["time"]
         
     if mode == "hybrid":
         # Handle synthesizing hybrid results
@@ -102,7 +72,6 @@ async def start_search(query: str, top_k: int, mode: str, use_qe: bool = False, 
             .with_columns(
                 pl.col("bm25_rank").fill_null(len(outputs["embeddings"]) + 1),
                 pl.col("embedding_rank").fill_null(len(outputs["bm25"]) + 1),
-                # score = (1 + pl.col("bm25_score").fill_null(0.0)) * (1 + pl.col("embedding_score").fill_null(0.0))
             ) \
             .with_columns(
                 score = (
@@ -118,27 +87,107 @@ async def start_search(query: str, top_k: int, mode: str, use_qe: bool = False, 
             [ outputs["bm25"], outputs["embeddings"] ],
             how = "diagonal_relaxed"
         )
+    times["synthesis"] += time.time() - synthesis_start
     
-    # Cross reference IDs with original dataset
-    # df_results = df \
-    #     .join(
-    #         df_retrieved,
-    #         left_on = "acn_num_ACN",
-    #         right_on = "doc_id"
-    #     ) \
-    #     .sort("score", descending=True)
-    times["synthesis"] = time.time() - synthesis_start
+    return df_retrieved
+
+async def feedback_approach_1(
+    query: str, search_q: str, mode: str, times: defaultdict[str, float],
+    init_pool: int = 100, k_increment: int = 50, max_pool: int = 5_000,
+    precision_threshold: float = 0.5
+) -> pl.DataFrame:
+    """
+    Precision-based expansion loop — collect judge-confirmed relevant docs only.
+    Keeps fetching in increments of A1_K_INCREMENT until A1_TARGET_K relevant docs
+    are collected or precision in the latest batch drops below A1_THRESHOLD.
+    Irrelevant documents are discarded; the return list contains only relevant docs.
+    """
+    current_pool  = init_pool
+    relevant_cache = {}
+    relevant_docs = []
+    all_docs = []
+
+    while current_pool < max_pool:
+        # Retrieve a new set of documents
+        df_ranked = await retrieve_docs(search_q, current_pool, mode, times)
+        if all_docs:
+            df_batch = df_ranked.filter(~pl.col("doc_id").is_in(all_docs))
+        else:
+            df_batch = df_ranked
+        new_batch = df_batch["doc_id"].unique().to_list()
+        # Stop if no new records returned
+        if not new_batch:
+            break
+
+        # Judge relevant documents and compute precision
+        batch_relevant = [pid for pid in new_batch if judge_relevance(query, pid, relevant_cache)]
+        precision = len(batch_relevant) / len(new_batch)
+        # Only keep relevant docs
+        relevant_docs.extend(batch_relevant)
+
+        # Break early if precision drops below threshold
+        if precision < precision_threshold:
+            break
+        
+        # Prep for next iteration
+        all_docs.extend(new_batch)
+        current_pool += k_increment
+
+    # Return all relevant documents
+    return df_ranked.filter(pl.col("doc_id").is_in(relevant_docs))
+
+async def start_search(
+    query: str, top_k: int, mode: str, 
+    use_qe: bool = False, use_qe_judge: bool = False, 
+    use_feedback_1: bool = False
+) -> schemas.StartSearchOutput:
+    start = time.time()
+    times = defaultdict(float)
+    
+    # Check if the search has been cached
+    cache_start = time.time()
+    search_params = {
+        "query": query,
+        "mode": mode,
+        "use_qe": use_qe,
+        "use_qe_judge": use_qe_judge,
+        "use_feedback_1": use_feedback_1
+    }
+    cache_key = cache.create_key(search_params)
+    cache_value = await cache.get_cache(cache_key)
+    if cache_value:
+        times["cache_read"] = time.time() - cache_start
+        times["api_total"] = time.time() - start
+        return {
+            "cache_key": cache_key,
+            "cached": True,
+            "total_results": len(cache_value),
+            "times": times,
+            "used_queries": []
+        }
+    else:
+        times["cache_read"] = time.time() - cache_start
+    
+    # Use query expansion
+    if use_qe:
+        qe_start = time.time()
+        query = await query_expansion(query, use_judge = use_qe_judge)
+        times["query_expansion"] = time.time() - qe_start
+    
+    if use_feedback_1:
+        df_retrieved = await feedback_approach_1(query, )
+    else:
+        df_retrieved = await retrieve_docs(query, top_k, mode, times)
     
     # Cache the results
-    print(df_retrieved)
+    cache_write_start = time.time()
     data = df_retrieved.to_dicts()
     await cache.set_cache(cache_key, data)
+    times["cache_write"] = time.time() - cache_write_start
         
     # Return the results
-    # data = df_results.to_dicts()
     times["api_total"] = time.time() - start
     return {
-        # "data": data,
         "cache_key": cache_key,
         "cached": False,
         "total_results": len(data),
@@ -169,19 +218,29 @@ async def retrieve_page(
     if paginate:
         df_page = df_page.slice(page*page_length, page_length)
     
-    # Get the raw records matching the results
-    ids = df_page["doc_id"].to_list()
-    df_records = await data.get_records_by_id(ids)
+    # Get the raw records matching the results and 
+    doc_ids = df_page["doc_id"].to_list()
+    chunk_ids = df_page["chunk_id"].to_list()
+    df_records, df_chunks = await asyncio.gather(data.get_records_by_id(doc_ids), db.get_relevant_chunks(doc_ids, chunk_ids))
     assert len(df_page) == len(df_records)
+    assert len(df_page) == len(df_chunks)
     
-    # Join result information with raw records
+    # Join result information with raw records and chunk text
     df = df_records \
         .join(
             df_page,
             left_on = "acn_num_ACN",
-            right_on = "doc_id"
+            right_on = "doc_id",
+            validate = "1:1"
         ) \
-        .sort("score", descending=True)
+        .join(
+            df_chunks,
+            left_on = "acn_num_ACN",
+            right_on = "doc_id",
+            validate = "1:1"
+        ) \
+        .sort("score", descending=True) \
+        .drop(["chunk_id"], strict = False)
     assert len(df) == len(df_page)
     
     return df, len(df_data)
@@ -206,7 +265,7 @@ async def download_results(cache_key: str, metadata_filters: dict[str, schemas.F
     df, _ = await retrieve_page(cache_key, False, metadata_filters=metadata_filters)
     
     # Drop irrelevant columns
-    df = df.drop(["score", "chunk_id"], strict = False)
+    df = df.drop(["score", "chunk_id", "chunks"], strict = False)
     
     # Write csv of results to buffer
     buffer = io.BytesIO()

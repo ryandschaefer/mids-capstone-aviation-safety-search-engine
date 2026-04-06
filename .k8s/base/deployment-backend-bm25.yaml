@@ -26,7 +26,7 @@ spec:
             - name: S3_BUCKET
               value: asrs-storage-anabel-2026
             - name: S3_KEY
-              value: bm25/bm25_asrs_full_index.pkl.gz
+              value: bm25/bm25_asrs_full_index_2.pkl.gz
             - name: AWS_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:

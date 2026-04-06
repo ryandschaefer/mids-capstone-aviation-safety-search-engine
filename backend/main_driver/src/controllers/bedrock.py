@@ -127,3 +127,40 @@ async def query_expansion(query: str, use_judge: bool = False) -> str:
         query_expanded = await query_expansion_judge(query, query_expanded)
         
     return query_expanded
+
+# Judge if a given narrative is relevant to the query or not
+async def judge_relevance(query: str, parent_doc_id: str, judge_cache: dict[tuple[str, str], bool] = {}) -> bool:
+    """Return True if Nova Pro judges the document relevant to the query."""
+    _RELEVANCE_JUDGE_TEMPLATE = (
+        'You are an aviation safety expert.\n'
+        'Query: "{query}"\n\n'
+        'Document:\n{narrative}\n\n'
+        'Is this document relevant to the query? Answer only YES or NO.'
+    )
+    
+    # Retrieve result from cache if valid
+    key = (query, parent_doc_id)
+    if key in judge_cache:
+        return judge_cache[key]
+    
+    # Say no if narrative is empty
+    narrative = text_lookup.get(parent_doc_id, '')
+    if not narrative:
+        judge_cache[key] = False
+        return False
+    
+    # Fill in prompt template
+    prompt = _RELEVANCE_JUDGE_TEMPLATE.format(query=query, narrative=narrative)
+    try:
+        # Run LLM with prompt template
+        answer = (await run_llm(prompt, max_tokens=5)).strip().upper()
+        print(f'  [Judge] Answer for doc {parent_doc_id}: {answer}')
+        result = answer.startswith('YES')
+    except Exception as e:
+        # Assume not relevant if there is an error
+        print(f'  [Judge] Error for doc {parent_doc_id}: {e}')
+        result = False
+        
+    # Cache and return result
+    judge_cache[key] = result
+    return result

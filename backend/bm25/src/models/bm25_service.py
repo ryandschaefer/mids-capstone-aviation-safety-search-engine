@@ -24,45 +24,17 @@ def tokenize(text):
     text = text.lower()
     return _token_re.findall(text)
 
-def chunk_tokens(tokens, chunk_size=250, overlap=50):
-    step = chunk_size - overlap
-    chunks = []
-    for start in range(0, len(tokens), step):
-        chunk = tokens[start:start + chunk_size]
-        if not chunk:
-            break
-        chunks.append(chunk)
-        if start + chunk_size >= len(tokens):
-            break
-    return chunks
-
-# =========================
-# Dataset adapters (ASRS)
-# =========================
-
-def get_doc_id(r):
-    return str(r.get("acn_num_ACN", ""))
-
-def get_text(r):
-    return (
-        (r.get("Report 1_Narrative") or "").strip()
-        or (r.get("Report 2_Narrative") or "").strip()
-        or (r.get("Report 1.2_Synopsis") or "").strip()
-    )
-
 # =========================
 # BM25 Index
 # =========================
 
 class BM25Index:
-    def __init__(self, postings, doc_len, avgdl, idf, meta, chunk_size, overlap):
+    def __init__(self, postings, doc_len, avgdl, idf, meta):
         self.postings = postings
         self.doc_len = doc_len
         self.avgdl = avgdl
         self.idf = idf
         self.meta = meta
-        self.chunk_size = chunk_size
-        self.overlap = overlap
 
     @staticmethod
     def load(path):
@@ -74,9 +46,7 @@ class BM25Index:
             doc_len=payload["doc_len"],
             avgdl=payload["avgdl"],
             idf=payload["idf"],
-            meta=payload["meta"],
-            chunk_size=payload["chunk_size"],
-            overlap=payload["overlap"],
+            meta=payload["meta"]
         )
 
     def search(self, query, top_k=10, k1=1.2, b=0.75):

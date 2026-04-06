@@ -63,6 +63,23 @@ spec:
                 secretKeyRef:
                   name: aws-credentials
                   key: AWS_REGION_S3
+            - name: SQL_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: SQL_HOST
+            - name: SQL_DATABASE
+              value: postgres
+            - name: SQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: SQL_USER
+            - name: SQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: SQL_PASSWORD
           resources:
             requests:
               cpu: 100m
