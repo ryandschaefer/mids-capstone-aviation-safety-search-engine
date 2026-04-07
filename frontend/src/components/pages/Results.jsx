@@ -65,6 +65,8 @@ export const Results = () => {
     const [useFeedback1, setUseFeedback1] = useState(localStorage.getItem(USE_FEEDBACK_1) === "true");
     const [queryTime, setQueryTime] = useState(-1.0);
     const [queryTimeText, setQueryTimeText] = useState("");
+    const [retrievalTime, setRetrievalTime] = useState(-1.0);
+    const [retrievalTimeText, setRetrievalTimeText] = useState("");
     const [expandedQuery, setExpandedQuery] = useState("");
     const [cacheKey, setCacheKey] = useState("");
     const [isCached, setIsCached] = useState(false);
@@ -139,6 +141,10 @@ export const Results = () => {
                     const rows = Array.isArray(response?.data) ? response.data : [];
                     setSearchResults(rows);
                     setTotalResults(response.total_results);
+                    // Save search time
+                    if (response?.times?.api_total) {
+                        setRetrievalTime(response.times.api_total * 1000);
+                    }
                 })
                 .finally(() => {
                     setLoading(false);
@@ -246,9 +252,15 @@ export const Results = () => {
 
     useEffect(() => {
         setQueryTimeText(
-            humanizeDuration(queryTime, { round: true, units: ["s", "ms"] })
+            humanizeDuration(queryTime, { round: true, units: ["m", "s", "ms"] })
         );
     }, [queryTime]);
+
+    useEffect(() => {
+        setRetrievalTimeText(
+            humanizeDuration(retrievalTime, { round: true, units: ["m", "s", "ms"] })
+        );
+    }, [retrievalTime]);
 
     useEffect(() => {
         getPage(cacheKey, currentPage, pageLength);
@@ -393,7 +405,14 @@ export const Results = () => {
                                             {totalResults >= 0
                                                 ? totalResults === 0
                                                     ? `No results for "${userQuery}". Try different keywords or clear filters.`
-                                                    : `${totalResults} result${totalResults !== 1 ? "s" : ""} for "${userQuery}" in ${queryTimeText}`
+                                                    : `${totalResults} result${totalResults !== 1 ? "s" : ""} for "${userQuery}" ${isCached ? "pulled from cache" : "found"} in ${queryTimeText}`
+                                                : ""}
+                                        </Typography>
+                                        <Typography variant="body1">
+                                            {totalResults >= 0
+                                                ? totalResults === 0
+                                                    ? ``
+                                                    : `Page retrieved in ${retrievalTimeText}`
                                                 : ""}
                                         </Typography>
                                         {expandedQuery ? (
@@ -515,7 +534,7 @@ export const Results = () => {
 
                                     <Column
                                         key="feedback"
-                                        header="Feedback"
+                                        header="Relevant?"
                                         style={{ minWidth: "110px" }}
                                         body={(record) => {
                                             const docId = getDocId(record);

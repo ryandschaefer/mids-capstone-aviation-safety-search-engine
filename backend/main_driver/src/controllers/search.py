@@ -203,10 +203,11 @@ async def start_search(
         df_retrieved = await retrieve_docs(query, top_k, mode, times)
     
     # Cache the results
-    cache_write_start = time.time()
-    data = df_retrieved.to_dicts()
-    await cache.set_cache(cache_key, data)
-    times["cache_write"] = time.time() - cache_write_start
+    if len(df_retrieved) > 0:
+        cache_write_start = time.time()
+        data = df_retrieved.to_dicts()
+        await cache.set_cache(cache_key, data)
+        times["cache_write"] = time.time() - cache_write_start
         
     # Return the results
     times["api_total"] = time.time() - start

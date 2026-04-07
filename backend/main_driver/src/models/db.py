@@ -39,17 +39,22 @@ async def close_connection():
 async def run_query(query) -> list[dict]:
     print(query)
     async with pool.acquire() as conn:
-        rows = await conn.fetch(query)
-        return [ dict(row) for row in rows ]
+        try:
+            rows = await conn.fetch(query)
+            return [ dict(row) for row in rows ]
+        except Exception as err:
+            print("  [DB] Error running query:", err)
+            return []
     
 # Rretrieve one or more chunks for a document
 async def get_doc_chunks(doc_id: str, chunk_ids: list[int]) -> list[dict]:
+    chunk_ids = [ str(id) for id in chunk_ids if id is not None ]
     if chunk_ids:
         query = f'''
             SELECT *
             FROM chunks
             WHERE doc_id = { doc_id }
-                AND chunk_id IN ({ ", ".join([ str(id) for id in chunk_ids if id is not None ]) })
+                AND chunk_id IN ({ ", ".join(chunk_ids) })
             ORDER BY chunk_id
         '''
     else:

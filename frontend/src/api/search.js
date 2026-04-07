@@ -85,7 +85,8 @@ export const getSearchResults = async (
     }
     return {
         data: Array.isArray(res.data?.data) ? res.data.data : [],
-        total_results: Number(res.data.total_results)
+        total_results: Number(res.data.total_results),
+        times: res.data.times
     };
 };
 
