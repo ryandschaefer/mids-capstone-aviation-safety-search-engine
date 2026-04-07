@@ -44,13 +44,21 @@ async def run_query(query) -> list[dict]:
     
 # Rretrieve one or more chunks for a document
 async def get_doc_chunks(doc_id: str, chunk_ids: list[int]) -> list[dict]:
-    query = f'''
-        SELECT *
-        FROM chunks
-        WHERE doc_id = { doc_id }
-            AND chunk_id IN ({ ", ".join(list(map(lambda x: str(x), chunk_ids))) })
-        ORDER BY chunk_id
-    '''
+    if chunk_ids:
+        query = f'''
+            SELECT *
+            FROM chunks
+            WHERE doc_id = { doc_id }
+                AND chunk_id IN ({ ", ".join([ str(id) for id in chunk_ids if id is not None ]) })
+            ORDER BY chunk_id
+        '''
+    else:
+        query = f'''
+            SELECT *
+            FROM chunks
+            WHERE doc_id = { doc_id }
+            ORDER BY chunk_id
+        '''
     return await run_query(query)
 
 # Retrieve all relevant chunks for a search
@@ -71,7 +79,7 @@ async def get_relevant_chunks(doc_ids: list[str], chunk_ids: list[list[int]]) ->
         
 # Retrieve narratives for a set of documents by id
 async def get_narratives(doc_ids: list[str]) -> pl.DataFrame:
-    formatted_ids = ", ".join(list(map(lambda x: str(x), doc_ids)))
+    formatted_ids = ", ".join([ str(id) for id in doc_ids if id is not None ])
     query = f'''
         SELECT *
         FROM narratives

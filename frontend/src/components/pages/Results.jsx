@@ -7,105 +7,47 @@ import { Box, Button, Chip, FormControl, FormControlLabel, Grid, IconButton, Inp
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import ThumbUpAltOutlinedIcon from "@mui/icons-material/ThumbUpAltOutlined";
 import ThumbDownAltOutlinedIcon from "@mui/icons-material/ThumbDownAltOutlined";
-import { allColumns, MetadataFilters, SearchBar } from "../common";
+import { allColumns, SearchBar } from "../common";
 import { createSearch, getSearchResults, downloadSearchResults } from "../../api";
-import { displayColumns } from "../../utils";
 import { useNavigate } from "react-router-dom";
 import humanizeDuration from "humanize-duration";
 import { MultiSelect } from "primereact/multiselect";
-import { X } from "@mui/icons-material";
 
 const primeReactConfig = {
     hideOverlaysOnDocumentScrolling: false
 };
 
-const normalize = (s) => (s || "").replace(/\s+/g, " ").trim();
-
-function normalizedToOriginalPositions(text, normStart, normEnd) {
-    let ni = 0;
-    let inSpace = false;
-    let start = -1;
-    let end = -1;
-    for (let i = 0; i < text.length; i++) {
-        if (/\s/.test(text[i])) {
-            if (!inSpace) { inSpace = true; ni++; }
-        } else {
-            inSpace = false;
-            ni++;
-        }
-        if (start === -1 && ni >= normStart) start = i;
-        if (end === -1 && ni >= normEnd) { end = i + 1; break; }
-    }
-    if (end === -1) end = text.length;
-    return { start: start < 0 ? 0 : start, end };
-}
-
-function escapeRe(s) {
-    return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function highlightQueryTermsSimple(segment, query) {
-    if (!segment || !query || !String(query).trim()) return segment;
-    const terms = String(query).trim().split(/\s+/).filter((w) => w.length > 0);
-    if (terms.length === 0) return segment;
-    const re = new RegExp(`(${terms.map(escapeRe).join("|")})`, "gi");
-    const parts = segment.split(re);
-    return parts.map((p, i) => (i % 2 === 1 ? <mark key={i} style={{ backgroundColor: "rgba(255, 193, 7, 0.5)", padding: "0 1px" }}>{p}</mark> : p));
-}
-
-function NarrativeWithHighlightAndChunk({ narrative, snippet, query }) {
-    const text = narrative == null ? "" : String(narrative);
-    if (!text) return "";
-    const nText = normalize(text);
-    const nSnippet = (snippet && normalize(snippet)) || "";
-    const idx = nSnippet ? nText.toLowerCase().indexOf(nSnippet.toLowerCase()) : -1;
-    const hasChunk = idx >= 0;
-    const pos = hasChunk ? normalizedToOriginalPositions(text, idx, idx + nSnippet.length) : { start: 0, end: 0 };
-    const beforeChunk = text.slice(0, pos.start);
-    const chunkText = hasChunk ? text.slice(pos.start, pos.end) : "";
-    const afterChunk = hasChunk ? text.slice(pos.end) : text;
-    return (
-        <>
-            {highlightQueryTermsSimple(beforeChunk, query)}
-            {chunkText ? (
-                <span style={{ backgroundColor: "rgba(255, 235, 59, 0.25)", fontWeight: 600 }}>
-                    {highlightQueryTermsSimple(chunkText, query)}
-                </span>
-            ) : null}
-            {highlightQueryTermsSimple(afterChunk, query)}
-        </>
-    );
-}
-
-const TIME_DATE_KEY = "Time_Date";
-const PLACE_KEY = "Place_Locale Reference";
-const ANOMALY_KEY = "Events_Anomaly";
 const SEARCH_MODE_KEY = "search-mode";
 const FEEDBACK_KEY = "result-feedback-v1";
 const USE_QE_KEY = "use-qe";
 const USE_QE_JUDGE_KEY = "use-qe-judge";
+const USE_FEEDBACK_1 = "use-feedback-1";
 
-function applyClientFilters(rows, filters) {
-    if (!rows || !rows.length) return [];
-    let out = rows;
-    const when = (filters.when_prefix || "").trim();
-    const where = (filters.where_contains || "").trim();
-    const anomaly = (filters.anomaly_contains || "").trim();
-    if (when) {
-        out = out.filter((r) => (r[TIME_DATE_KEY] != null && String(r[TIME_DATE_KEY]).startsWith(when)));
-    }
-    if (where) {
-        const w = where.toLowerCase();
-        out = out.filter((r) => (r[PLACE_KEY] != null && String(r[PLACE_KEY]).toLowerCase().includes(w)));
-    }
-    if (anomaly) {
-        const a = anomaly.toLowerCase();
-        out = out.filter((r) => {
-            const val = r[ANOMALY_KEY] ?? r["Events_Anomaly Type"] ?? "";
-            return String(val).toLowerCase().includes(a);
-        });
-    }
-    return out;
+const HighlightText = ({ narrative, chunks = [] }) => {
+    if (!chunks.length || !narrative) return <span>{narrative}</span>;
+
+    // Build and sort match ranges
+    const ranges = chunks
+        .map((chunk) => {
+            const index = chunk ? narrative.toLowerCase().indexOf(chunk.toLowerCase()) : -1;
+            return index === -1 ? null : { start: index, end: index + chunk.length };
+            })
+        .filter(Boolean)
+        .sort((a, b) => a.start - b.start);
+
+    if (!ranges.length) return <span>{narrative}</span>;
+
+    // Build output segments
+    const segments = [];
+    let cursor = 0;
+    ranges.forEach(({ start, end }, i) => {
+        if (cursor < start) segments.push(<span key={`t-${i}`}>{narrative.slice(cursor, start)}</span>);
+        segments.push(<mark style={{ background: "#FAC775", color: "#412402", borderRadius: 3, padding: "0 2px" }} key={`b-${i}`}>{narrative.slice(start, end)}</mark>);
+        cursor = end;
+    });
+    if (cursor < narrative.length) segments.push(<span key="tail">{narrative.slice(cursor)}</span>);
+
+    return <span>{segments}</span>;
 }
 
 export const Results = () => {
@@ -120,6 +62,7 @@ export const Results = () => {
     const [searchMode, setSearchMode] = useState(localStorage.getItem(SEARCH_MODE_KEY) || "bm25");
     const [useQe, setUseQe] = useState(localStorage.getItem(USE_QE_KEY) === "true");
     const [useQeJudge, setUseQeJudge] = useState(localStorage.getItem(USE_QE_JUDGE_KEY) === "true");
+    const [useFeedback1, setUseFeedback1] = useState(localStorage.getItem(USE_FEEDBACK_1) === "true");
     const [queryTime, setQueryTime] = useState(-1.0);
     const [queryTimeText, setQueryTimeText] = useState("");
     const [expandedQuery, setExpandedQuery] = useState("");
@@ -130,7 +73,6 @@ export const Results = () => {
     const [visibleColumns, setVisibleColumns] = useState([
         "acn_num_ACN", "Time_Date", "Time.1_Local Time Of Day", "Place_Locale Reference"
     ]);
-    const [filters, setFilters] = useState({ when_prefix: "", where_contains: "", anomaly_contains: "" });
     const [feedbackByDoc, setFeedbackByDoc] = useState(() => {
         try {
             return JSON.parse(localStorage.getItem(FEEDBACK_KEY) || "{}");
@@ -143,10 +85,12 @@ export const Results = () => {
         const query = localStorage.getItem("user-query");
         if (query) {
             setLoading(true);
+            const topK = useFeedback1 ? 500 : 50;
 
-            createSearch(query, searchMode, 50, {
+            createSearch(query, searchMode, topK, {
                 use_qe: useQe,
                 use_qe_judge: useQeJudge,
+                use_feedback_1: useFeedback1
             })
                 .then(response => {
                     // Reset metadata filters for new query
@@ -405,6 +349,21 @@ export const Results = () => {
                                     }
                                     label="LLM Relevance Judge"
                                 />
+                                <FormControlLabel
+                                    control={
+                                        <Switch
+                                            size="small"
+                                            checked={useFeedback1}
+                                            onChange={(e) => {
+                                                const checked = e.target.checked;
+                                                setUseFeedback1(checked);
+                                                localStorage.setItem(USE_FEEDBACK_1, String(checked));
+                                            }}
+                                            disabled={loading}
+                                        />
+                                    }
+                                    label="LLM Feedback Loop"
+                                />
                             </Box>
                             {/* <MetadataFilters
                                 disabled={loading}
@@ -447,6 +406,7 @@ export const Results = () => {
                                             <Chip size="small" color={useQe ? "primary" : "default"} label={`Search Path: ${useQe ? "LLM Enhanced" : "Fast Baseline"}`} />
                                             <Chip size="small" color={useQe ? "primary" : "default"} label={`LLM QE: ${useQe ? "On" : "Off"}`} />
                                             <Chip size="small" color={useQeJudge ? "primary" : "default"} label={`LLM Judge: ${useQeJudge ? "On" : "Off"}`} />
+                                            <Chip size="small" color={useFeedback1 ? "primary" : "default"} label={`LLM Feedback: ${useFeedback1 ? "On" : "Off"}`} />
                                         </Box>
                                     </Box>
 
@@ -517,7 +477,10 @@ export const Results = () => {
                                                     "&::-webkit-scrollbar-thumb:hover": { background: "#a1a1a1" },
                                                 }}
                                             >
-                                                {record["Report 1_Narrative"]}
+                                                <HighlightText
+                                                    narrative={record["Report 1_Narrative"]}
+                                                    chunks={record["chunks"]}
+                                                />
                                             </Box>
                                         )}
                                     />

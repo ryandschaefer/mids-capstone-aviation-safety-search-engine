@@ -102,13 +102,13 @@ async def feedback_approach_1(
     are collected or precision in the latest batch drops below A1_THRESHOLD.
     Irrelevant documents are discarded; the return list contains only relevant docs.
     """
-    current_pool  = init_pool
+    current_pool  = min(init_pool, max_pool)
     relevant_cache = {}
     relevant_docs = []
     all_docs = []
     num_iters = 0
 
-    while current_pool <= max_pool:
+    while current_pool == init_pool or current_pool <= max_pool:
         print(f"\nStarting iteration { num_iters+1 }. Retrieving { current_pool } chunks...")
         # Retrieve a new set of documents
         df_ranked = await retrieve_docs(search_q, current_pool, mode, times)
@@ -121,6 +121,7 @@ async def feedback_approach_1(
         if not new_batch:
             break
 
+        judge_start = time.time()
         # Get narratives for the new batch of documents
         df_narratives = await db.get_narratives(new_batch)
         # Judge relevant documents and compute precision
@@ -131,6 +132,8 @@ async def feedback_approach_1(
         df_narratives = df_narratives.with_columns(
             pl.Series("is_relevant", judge_results)
         )
+        times["llm_judge"] += time.time() - judge_start
+        
         batch_relevant = df_narratives.filter(pl.col("is_relevant") == True)["doc_id"].to_list()
         precision = len(batch_relevant) / len(new_batch)
         print(f"{ len(batch_relevant) }/{ len(new_batch) } documents are relevant. Precision = {precision:.3f}")
@@ -162,6 +165,7 @@ async def start_search(
     cache_start = time.time()
     search_params = {
         "query": query,
+        "top_k": top_k,
         "mode": mode,
         "use_qe": use_qe,
         "use_qe_judge": use_qe_judge,
@@ -193,7 +197,7 @@ async def start_search(
     num_iters = None
     if use_feedback_1:
         loop_start = time.time()
-        df_retrieved, num_iters = await feedback_approach_1(query, search_query, mode, times, max_pool=200)
+        df_retrieved, num_iters = await feedback_approach_1(query, search_query, mode, times, max_pool=top_k)
         times["feedback_loop"] = time.time() - loop_start
     else:
         df_retrieved = await retrieve_docs(query, top_k, mode, times)
@@ -219,15 +223,20 @@ async def start_search(
 async def retrieve_page(
     cache_key: str, paginate: bool, page: int = 0, page_length: int = 10, 
     metadata_filters: dict[str, schemas.FilterInput] | None = None
-) -> tuple[pl.DataFrame, int]:
+) -> tuple[pl.DataFrame, int, dict[str, float]]:
+    start_time = time.time()
+    times = defaultdict(float)
+    
     # Get data from the cache
     # and apply metadata filters in parallel
     cache_data, df_metadata = await asyncio.gather(cache.get_cache(cache_key), data.get_metadata_filters(metadata_filters))
+    times["cache_plus_metadata"] = time.time() - start_time
     
     # Check that the cache key exists and is not expired
     if cache_data is None:
         raise Exception(f"The search with the key `{cache_key}` either does not exist or has expired")
     
+    paginate_start = time.time()
     # Join with metadata filters
     df_data = pl.DataFrame(cache_data)
     if df_metadata is not None:
@@ -237,14 +246,18 @@ async def retrieve_page(
     df_page = df_data.sort("score", descending = True)
     if paginate:
         df_page = df_page.slice(page*page_length, page_length)
+    times["filter_plus_paginate"] = time.time() - paginate_start
     
+    retrieve_start = time.time()
     # Get the raw records matching the results and 
     doc_ids = df_page["doc_id"].to_list()
     chunk_ids = df_page["chunk_id"].to_list()
     df_records, df_chunks = await asyncio.gather(data.get_records_by_id(doc_ids), db.get_relevant_chunks(doc_ids, chunk_ids))
     assert len(df_page) == len(df_records)
     assert len(df_page) == len(df_chunks)
+    times["retrieval"] = time.time() - retrieve_start
     
+    join_start = time.time()
     # Join result information with raw records and chunk text
     df = df_records \
         .join(
@@ -262,8 +275,10 @@ async def retrieve_page(
         .sort("score", descending=True) \
         .drop(["chunk_id"], strict = False)
     assert len(df) == len(df_page)
+    times["joins"] = time.time() - join_start
+    times["api_total"] = time.time() - start_time
     
-    return df, len(df_data)
+    return df, len(df_data), times
     
 # Retrieve a page of results for a search from the cache
 async def retrieve_results(
@@ -271,18 +286,19 @@ async def retrieve_results(
     metadata_filters: dict[str, schemas.FilterInput] | None = None
 ) -> list[dict]:
     # Retrieve a page of results from s3
-    df, total_results = await retrieve_page(cache_key, True, page, page_length, metadata_filters)
+    df, total_results, times = await retrieve_page(cache_key, True, page, page_length, metadata_filters)
     
     records = df.to_dicts()
     return {
         "total_results": total_results,
+        "times": times,
         "data": records
     }
     
 # Download cached results as a csv
 async def download_results(cache_key: str, metadata_filters: dict[str, schemas.FilterInput] | None = None) -> StreamingResponse:
     # Retreive all results from s3
-    df, _ = await retrieve_page(cache_key, False, metadata_filters=metadata_filters)
+    df, _, _ = await retrieve_page(cache_key, False, metadata_filters=metadata_filters)
     
     # Drop irrelevant columns
     df = df.drop(["score", "chunk_id", "chunks"], strict = False)

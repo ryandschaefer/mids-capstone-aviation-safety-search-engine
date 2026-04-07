@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 const SEARCH_MODE_KEY = "search-mode";
 const USE_QE_KEY = "use-qe";
 const USE_QE_JUDGE_KEY = "use-qe-judge";
+const USE_FEEDBACK_1 = "use-feedback-1";
 
 const EXAMPLE_QUERIES = [
     "altitude deviation",
@@ -18,6 +19,7 @@ export const Search = () => {
     const [searchMode, setSearchMode] = useState(localStorage.getItem(SEARCH_MODE_KEY) || "bm25");
     const [useQe, setUseQe] = useState(localStorage.getItem(USE_QE_KEY) === "true");
     const [useQeJudge, setUseQeJudge] = useState(localStorage.getItem(USE_QE_JUDGE_KEY) === "true");
+    const [useFeedback1, setUseFeedback1] = useState(localStorage.getItem(USE_FEEDBACK_1) === "true");
 
     useEffect(() => {
         localStorage.setItem(SEARCH_MODE_KEY, searchMode);
@@ -30,6 +32,10 @@ export const Search = () => {
     useEffect(() => {
         localStorage.setItem(USE_QE_JUDGE_KEY, String(useQeJudge));
     }, [useQeJudge]);
+
+    useEffect(() => {
+        localStorage.setItem(USE_FEEDBACK_1, String(useFeedback1));
+    }, [useFeedback1]);
 
     const onToggleQe = (checked) => {
         setUseQe(checked);
@@ -154,6 +160,16 @@ export const Search = () => {
                                 />
                             }
                             label="LLM Relevance Judge"
+                        />
+                        <FormControlLabel
+                            control={
+                                <Switch
+                                    size="small"
+                                    checked={useFeedback1}
+                                    onChange={(event) => setUseFeedback1(event.target.checked)}
+                                />
+                            }
+                            label="LLM Feedback Loop"
                         />
                     </Box>
                 </Box>

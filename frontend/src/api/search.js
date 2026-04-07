@@ -17,7 +17,7 @@ export const getTestData = async () => {
  * @param {string} query - Search query
  * @param {string} mode - "bm25" | "embeddings" | "hybrid"
  * @param {number} top_k - Max results to return (default 50)
- * @param {{use_qe?: boolean, use_qe_judge?: boolean}} options - Optional LLM enhancements
+ * @param {{use_qe?: boolean, use_qe_judge?: boolean, use_feedback_1?: boolean}} options - Optional LLM enhancements
  */
 export const createSearch = async(
     query,
@@ -31,6 +31,7 @@ export const createSearch = async(
         top_k,
         use_qe: Boolean(options.use_qe),
         use_qe_judge: Boolean(options.use_qe_judge),
+        use_feedback_1: Boolean(options.use_feedback_1)
     };
     const res = await axios.post(SEARCH_ENDPOINT, payload);
     if (res.status !== 200) {
