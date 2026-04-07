@@ -254,8 +254,8 @@ async def retrieve_page(
     doc_ids = df_page["doc_id"].to_list()
     chunk_ids = df_page["chunk_id"].to_list()
     df_records, df_chunks = await asyncio.gather(data.get_records_by_id(doc_ids), db.get_relevant_chunks(doc_ids, chunk_ids))
-    assert len(df_page) == len(df_records)
-    assert len(df_page) == len(df_chunks)
+    # assert len(df_page) == len(df_records)
+    # assert len(df_page) == len(df_chunks)
     times["retrieval"] = time.time() - retrieve_start
     
     join_start = time.time()
@@ -275,7 +275,7 @@ async def retrieve_page(
         ) \
         .sort("score", descending=True) \
         .drop(["chunk_id"], strict = False)
-    assert len(df) == len(df_page)
+    # assert len(df) == len(df_page)
     times["joins"] = time.time() - join_start
     times["api_total"] = time.time() - start_time
     

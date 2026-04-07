@@ -75,4 +75,5 @@ class RetrieveSearchInput(BaseModel):
     
 class RetrieveSearchOutput(BaseModel):
     total_results: int
+    times: dict[str, float]
     data: list[dict]

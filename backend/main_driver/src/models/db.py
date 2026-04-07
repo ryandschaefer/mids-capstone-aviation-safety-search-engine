@@ -48,7 +48,7 @@ async def run_query(query) -> list[dict]:
     
 # Rretrieve one or more chunks for a document
 async def get_doc_chunks(doc_id: str, chunk_ids: list[int]) -> list[dict]:
-    chunk_ids = [ str(id) for id in chunk_ids if id is not None ]
+    chunk_ids = [ str(id) for id in chunk_ids if id is not None ] if chunk_ids else []
     if chunk_ids:
         query = f'''
             SELECT *
