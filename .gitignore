@@ -211,3 +211,5 @@ __marimo__/
 
 .k8s/base/aws-credentials-secret.yaml
 *.DS_Store
+
+backend/embeddings/tests/seed.py

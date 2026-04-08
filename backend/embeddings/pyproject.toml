@@ -22,4 +22,5 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry.group.dev.dependencies]
 datasets = "^4.5.0"
 langchain-text-splitters = "^1.1.1"
+psycopg2 = "^2.9.11"
 

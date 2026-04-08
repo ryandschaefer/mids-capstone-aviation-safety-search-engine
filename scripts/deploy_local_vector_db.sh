@@ -10,5 +10,5 @@ until curl -sf http://localhost:6333/healthz > /dev/null; do sleep 2; done
 
 # Run seeding script
 cd backend/embeddings
-poetry run python src/seed.py
+poetry run python tests/seed.py
 cd ../../

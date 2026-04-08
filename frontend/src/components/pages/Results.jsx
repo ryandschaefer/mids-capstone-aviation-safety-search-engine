@@ -87,6 +87,7 @@ export const Results = () => {
         const query = localStorage.getItem("user-query");
         if (query) {
             setLoading(true);
+            setCacheKey("");
             const topK = useFeedback1 ? 500 : 50;
 
             createSearch(query, searchMode, topK, {
