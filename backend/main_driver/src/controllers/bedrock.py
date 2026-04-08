@@ -149,10 +149,14 @@ async def query_expansion(query: str, use_judge: bool = False) -> str:
 async def judge_relevance(query: str, parent_doc_id: str, narrative: str, judge_cache: dict[tuple[str, str], bool] = {}) -> bool:
     """Return True if Nova Pro judges the document relevant to the query."""
     _RELEVANCE_JUDGE_TEMPLATE = (
-        'You are an aviation safety expert.\n'
+        'You are an aviation safety expert reviewing incident reports.\n'
+        'Determine if the excerpt below is from a report relevant to the query.\n\n'
+        'A report is relevant if the excerpt describes the same type of event or situation as the query.\n'
+        'A report is NOT relevant if the excerpt only mentions a keyword from the query incidentally '
+        'without the event itself occurring.\n\n'
         'Query: "{query}"\n\n'
-        'Document:\n{narrative}\n\n'
-        'Is this document relevant to the query? Answer only YES or NO.'
+        'Excerpt:\n{narrative}\n\n'
+        'Respond with only YES or NO.'
     )
     
     # Retrieve result from cache if valid

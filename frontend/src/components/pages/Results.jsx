@@ -88,7 +88,7 @@ export const Results = () => {
         if (query) {
             setLoading(true);
             setCacheKey("");
-            const topK = useFeedback1 ? 500 : 50;
+            const topK = 50;
 
             createSearch(query, searchMode, topK, {
                 use_qe: useQe,

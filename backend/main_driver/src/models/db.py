@@ -87,7 +87,7 @@ async def get_narratives(doc_ids: list[str]) -> pl.DataFrame:
     formatted_ids = ", ".join([ str(id) for id in doc_ids if id is not None ])
     query = f'''
         SELECT *
-        FROM narratives
+        FROM chunks
         WHERE doc_id IN ({ formatted_ids })
     '''
     sql_output = await run_query(query)

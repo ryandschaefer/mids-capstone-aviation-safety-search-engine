@@ -93,7 +93,7 @@ async def retrieve_docs(query: str, top_k: int, mode: str, times: defaultdict[st
 
 async def feedback_approach_1(
     query: str, search_q: str, mode: str, times: defaultdict[str, float],
-    init_pool: int = 100, k_increment: int = 50, max_pool: int = 5_000,
+    init_pool: int = 50, k_increment: int = 50, max_pool: int = 250,
     precision_threshold: float = 0.5
 ) -> tuple[pl.DataFrame, int]:
     """
@@ -116,6 +116,10 @@ async def feedback_approach_1(
             df_batch = df_ranked.filter(~pl.col("doc_id").is_in(all_docs))
         else:
             df_batch = df_ranked
+        # Get the first chunk for each document
+        df_batch = df_batch.with_columns(
+            chunk_id = pl.col("chunk_id").list.first()
+        )
         new_batch = df_batch["doc_id"].unique().to_list()
         # Stop if no new records returned
         if not new_batch:
@@ -123,10 +127,11 @@ async def feedback_approach_1(
 
         judge_start = time.time()
         # Get narratives for the new batch of documents
-        df_narratives = await db.get_narratives(new_batch)
+        df_narratives = (await db.get_narratives(new_batch)) \
+            .join(df_batch, on = ["doc_id", "chunk_id"])
         # Judge relevant documents and compute precision
         judge_results = await asyncio.gather(*[
-            judge_relevance(query, row["doc_id"], row["narrative"], relevant_cache) 
+            judge_relevance(query, row["doc_id"], row["text"], relevant_cache) 
             for row in df_narratives.iter_rows(named = True)
         ])
         df_narratives = df_narratives.with_columns(
@@ -197,7 +202,10 @@ async def start_search(
     num_iters = None
     if use_feedback_1:
         loop_start = time.time()
-        df_retrieved, num_iters = await feedback_approach_1(query, search_query, mode, times, max_pool=top_k)
+        df_retrieved, num_iters = await feedback_approach_1(
+            query, search_query, mode, times,
+            top_k, top_k, top_k * 5
+        )
         times["feedback_loop"] = time.time() - loop_start
     else:
         df_retrieved = await retrieve_docs(query, top_k, mode, times)
