@@ -1,0 +1,59 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: aviation-safety
+resources:
+  - ./namespace.yaml
+  - ../../base
+
+patches:
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+    target:
+      kind: Deployment
+  - path: lb-service-frontend.yaml
+    target:
+      kind: Service
+      labelSelector: app=frontend-service
+  - path: lb-service-backend-main.yaml
+    target:
+      kind: Service
+      labelSelector: app=backend-main-service
+  - path: lb-service-backend-bm25.yaml
+    target:
+      kind: Service
+      labelSelector: app=backend-bm25-service
+  - path: lb-service-backend-embeddings.yaml
+    target:
+      kind: Service
+      labelSelector: app=backend-embeddings-service
+  - path: env-deployment-backend-main.yaml
+    target:
+      kind: Deployment
+      labelSelector: app=backend-main-deployment
+
+  # Qdrant patches
+  ### 1. Delete the Deployment — Qdrant runs in Docker, not in the cluster
+  - patch: |
+      $patch: delete
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: qdrant
+    target:
+      kind: Deployment
+      name: qdrant
+  ### 2. Replace ClusterIP service with ExternalName pointing to host machine
+  - path: patch-service-qdrant.yaml
+    target:
+      kind: Service
+      name: qdrant-service
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/env/0/value
+        value: http://localhost:8000
+    target:
+      kind: Deployment
+      name: frontend-deployment

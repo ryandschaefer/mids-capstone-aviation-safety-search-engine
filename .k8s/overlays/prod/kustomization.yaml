@@ -1,0 +1,76 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: aviation-safety
+resources:
+  - ../../base
+  - ./namespace.yaml
+  - hpa-frontend.yaml
+  - hpa-backend-main.yaml
+  - hpa-backend-bm25.yaml
+  - hpa-backend-embeddings.yaml
+  # - qdrant-init-container.yaml
+patches:
+  - path: qdrant-init-container.yaml  # ← moved here
+  # Pull from ECR on all deployments (base uses Never for minikube)
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Always
+    target:
+      kind: Deployment
+ 
+  # Fix QDRANT_HOST for in-cluster DNS (base uses host.minikube.internal)
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/env/2/value
+        value: qdrant-service
+    target:
+      kind: Deployment
+      name: backend-embeddings-deployment
+ 
+  # Fix model name
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/env/1/value
+        value: thenlper/gte-large
+    target:
+      kind: Deployment
+      name: backend-embeddings-deployment
+ 
+  # Expose only the frontend via NLB — all other services stay ClusterIP
+  - patch: |-
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: frontend-service
+        annotations:
+          service.beta.kubernetes.io/aws-load-balancer-type: nlb
+      spec:
+        type: LoadBalancer
+    target:
+      kind: Service
+      name: frontend-service
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/env/0/value
+        value: /api
+    target:
+      kind: Deployment
+      name: frontend-deployment
+images:
+  - name: frontend
+    newName: 034362054263.dkr.ecr.us-east-1.amazonaws.com/aviation-safety-capstone-spring-2026/frontend
+    newTag: "latest"
+  - name: backend-main
+    newName: 034362054263.dkr.ecr.us-east-1.amazonaws.com/aviation-safety-capstone-spring-2026/backend-main
+    newTag: "latest"
+  - name: backend-bm25
+    newName: 034362054263.dkr.ecr.us-east-1.amazonaws.com/aviation-safety-capstone-spring-2026/backend-bm25
+    newTag: "latest"
+  - name: backend-embeddings
+    newName: 034362054263.dkr.ecr.us-east-1.amazonaws.com/aviation-safety-capstone-spring-2026/backend-embeddings
+    newTag: "latest"
+  - name: qdrant-init
+    newName: 034362054263.dkr.ecr.us-east-1.amazonaws.com/aviation-safety-capstone-spring-2026/qdrant-init
+    newTag: "latest"

@@ -1,0 +1,26 @@
+[project]
+name = "src"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Ryan Schaefer",email = "rschaefer1@me.com"}
+]
+readme = "README.md"
+requires-python = ">=3.11,<4.0.0"
+dependencies = [
+    "fastapi[standard] (>=0.129.0,<0.130.0)",
+    "polars (>=1.38.1,<2.0.0)",
+    "sentence-transformers (>=5.2.3,<6.0.0)",
+    "qdrant-client (>=1.17.0,<2.0.0)",
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.group.dev.dependencies]
+datasets = "^4.5.0"
+langchain-text-splitters = "^1.1.1"
+psycopg2 = "^2.9.11"
+

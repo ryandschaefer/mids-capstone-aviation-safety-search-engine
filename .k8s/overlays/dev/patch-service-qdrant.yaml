@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: qdrant-service
+spec:
+  # Replaces the base ClusterIP service entirely.
+  # ExternalName acts as a DNS alias — pods calling http://qdrant-service:6333
+  # are transparently forwarded to the Qdrant Docker container on the host machine.
+  # host.minikube.internal is Minikube's built-in DNS name for the host OS.
+  type: ExternalName
+  externalName: host.minikube.internal
+  ports:
+    - name: http
+      port: 6333
+    - name: grpc
+      port: 6334

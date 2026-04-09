@@ -1,0 +1,186 @@
+import aioboto3
+import json
+from fastapi import HTTPException
+import os
+import asyncio
+from botocore.exceptions import ClientError
+import random
+
+client_config = {
+    "aws_access_key_id": os.environ.get("AWS_ACCESS_KEY_BEDROCK"),
+    "aws_secret_access_key": os.environ.get("AWS_SECRET_KEY_BEDROCK"),
+    "region_name": os.environ.get("AWS_REGION_BEDROCK"),
+}
+session = aioboto3.Session(**client_config)
+
+# Create a semaphore to limit the number of concurrent LLM calls
+BEDROCK_SEMAPHORE = asyncio.Semaphore(5)
+
+async def run_llm(prompt: str, max_tokens: int = 100, max_retries: int = 5) -> str:
+    # Configure LLM inputs
+    payload = {
+        "messages": [{
+            "role": "user",
+            "content": [{
+                "text": prompt
+            }]
+        }],
+        "inferenceConfig": {
+            "maxTokens": max_tokens
+        },
+    }
+    # print("LLM payload:")
+    # print(json.dumps(payload, indent = 4))
+    
+    async with BEDROCK_SEMAPHORE:
+        for attempt in range(max_retries):
+            try:
+                async with session.client("bedrock-runtime") as bedrock_client:
+                    # Generate response from bedrock
+                    response = await bedrock_client.invoke_model(
+                        modelId="us.amazon.nova-pro-v1:0",
+                        body=json.dumps(payload),
+                        contentType="application/json",
+                        accept="application/json",
+                    )
+                
+                # Extract generated text from bedrock response
+                body = json.loads(await response["body"].read())
+                text = body["output"]["message"]["content"][0]["text"]
+                
+                return text
+            except ClientError as e:
+                if e.response["Error"]["Code"] == "ThrottlingException":
+                    wait = (2 ** attempt) + random.uniform(0, 1)
+                    print(f"  [LLM] Throttled, retrying in {wait:.2f}s (attempt {attempt+1})")
+                    await asyncio.sleep(wait)
+                else:
+                    raise HTTPException(status_code=502, detail=f"Bedrock error: {e}")
+            except Exception as e:
+                raise HTTPException(status_code=502, detail=f"Bedrock error: {e}")
+            
+    raise Exception(f"Bedrock failed to give a response in {max_retries} attempts")
+
+async def query_expansion_judge(original_query: str, expanded_query: str) -> str:
+    # Prompt template for LLM judge of query expansion
+    _judge_prompt_template = """\
+    You are an aviation safety retrieval expert reviewing query expansion results.
+
+    Original query: "{original}"
+    Expanded query terms: "{expanded}"
+
+    Keep a term only if it is a word from the original query, or a direct synonym, abbreviation, or closely related ASRS term for the original query's topic.
+    Remove any term that introduces a concept not present or clearly implied in the original query.
+
+    Output ONLY the filtered terms as space-separated words — no explanation."""
+    
+    # Fill in prompt template with old and new queries
+    prompt = _judge_prompt_template.format(original=original_query, expanded=expanded_query)
+    
+    # Get new query from Bedrock
+    qe_judge_raw = await run_llm(prompt)
+    # Take only the first line (guard against model hallucinating more Input:/Output: pairs)
+    new_query = qe_judge_raw.strip().splitlines()[0].strip().strip('"')
+    
+    # Only use new filtered query if it isn't too short
+    if new_query and len(new_query) >= len(original_query) * 0.5:
+        return new_query
+    
+    return expanded_query
+
+async def query_expansion(query: str, use_judge: bool = False) -> str:
+    # ASRS anomaly categories used to ground the prompt in real data vocabulary.
+    _ASRS_ANOMALY_CONTEXT = """
+    Common ASRS anomaly categories:
+    - Deviation / Discrepancy - Procedural Published Material / Policy
+    - ATC Issue All Types
+    - Deviation / Discrepancy - Procedural Clearance
+    - Aircraft Equipment Problem Less Severe / Critical
+    - Inflight Event / Encounter Weather / Turbulence
+    - Conflict Airborne Conflict / NMAC / Ground Conflict
+    - Inflight Event / Encounter CFTT / CFIT
+    - Deviation - Altitude Excursion / Overshoot / Undershoot / Crossing Restriction
+    - Airspace Violation All Types
+    - Inflight Event / Encounter Fuel Issue / Unstabilized Approach / Loss Of Aircraft Control
+    """
+
+    # Prompt template for query expansion
+    _QE_PROMPT_TEMPLATE = """\
+    You are an aviation safety retrieval expert specializing in NASA ASRS incident reports.
+
+    {anomaly_context}
+    Task: Expand the search query with synonyms and ASRS-specific terms to improve recall.
+    Only add terms directly implied by the query topic. Keep ALL original words.
+    Output ONLY space-separated terms — no punctuation, no explanation.
+
+    Input: policy deviation
+    Output: policy deviation procedural non-compliance published material regulatory deviation SOP
+
+    Input: atc instruction issue
+    Output: ATC instruction issue communication error clearance readback controller pilot
+
+    Input: near midair collision
+    Output: near midair collision NMAC TCAS RA airborne conflict traffic separation loss
+
+    Input: controlled flight into terrain
+    Output: controlled flight into terrain CFIT GPWS terrain conflict descent IMC
+
+    Input: fuel emergency
+    Output: fuel exhaustion fuel starvation in-flight fuel emergency low fuel reserves fuel imbalance
+
+    Input: {query}
+    Output:""".format(anomaly_context=_ASRS_ANOMALY_CONTEXT, query="{query}")
+    
+    # Fill in prompt template with current query
+    prompt = _QE_PROMPT_TEMPLATE.format(query=query)
+    
+    # Get new query from Bedrock
+    qe_raw = await run_llm(prompt)
+    # Take only the first line (guard against model hallucinating more Input:/Output: pairs)
+    query_expanded = qe_raw.strip().splitlines()[0].strip().strip('"')
+    
+    # Check if LLM as a judge should be used on the expanded query
+    if use_judge:
+        query_expanded = await query_expansion_judge(query, query_expanded)
+        
+    return query_expanded
+
+# Judge if a given narrative is relevant to the query or not
+async def judge_relevance(query: str, parent_doc_id: str, narrative: str, judge_cache: dict[tuple[str, str], bool] = {}) -> bool:
+    """Return True if Nova Pro judges the document relevant to the query."""
+    _RELEVANCE_JUDGE_TEMPLATE = (
+        'You are an aviation safety expert reviewing incident reports.\n'
+        'Determine if the excerpt below is from a report relevant to the query.\n\n'
+        'A report is relevant if the excerpt describes the same type of event or situation as the query.\n'
+        'A report is NOT relevant if the excerpt only mentions a keyword from the query incidentally '
+        'without the event itself occurring.\n\n'
+        'Query: "{query}"\n\n'
+        'Excerpt:\n{narrative}\n\n'
+        'Respond with only YES or NO.'
+    )
+    
+    # Retrieve result from cache if valid
+    key = (query, parent_doc_id)
+    if key in judge_cache:
+        return judge_cache[key]
+    
+    # Say no if narrative is empty
+    if not narrative:
+        judge_cache[key] = False
+        return False
+    
+    # Fill in prompt template
+    prompt = _RELEVANCE_JUDGE_TEMPLATE.format(query=query, narrative=narrative)
+    try:
+        # Run LLM with prompt template
+        answer = (await run_llm(prompt, max_tokens=5)).strip().upper()
+        print(f'  [Judge] Answer for doc {parent_doc_id}: {answer}')
+        result = answer.startswith('YES')
+    except Exception as e:
+        # Assume not relevant if there is an error
+        print(f'  [Judge] Error for doc {parent_doc_id}: {e}')
+        result = False
+        
+    # Cache and return result
+    judge_cache[key] = result
+    return result

@@ -1,0 +1,16 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: aviation-safety
+resources:
+  - aws-credentials-secret.yaml
+  - deployment-frontend.yaml
+  - deployment-backend-main.yaml
+  - deployment-backend-bm25.yaml
+  - deployment-backend-embeddings.yaml
+  - deployment-qdrant.yaml
+  - service-frontend.yaml
+  - service-backend-main.yaml
+  - service-backend-bm25.yaml
+  - service-backend-embeddings.yaml
+  - service-qdrant.yaml

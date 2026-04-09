@@ -205,3 +205,11 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+*.history
+*.vscode
+
+.k8s/base/aws-credentials-secret.yaml
+*.DS_Store
+
+backend/embeddings/tests/seed.py

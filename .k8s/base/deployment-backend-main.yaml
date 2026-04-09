@@ -1,0 +1,112 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-main-deployment
+  namespace: aviation-safety
+  labels:
+    app: backend-main-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend-main
+  template:
+    metadata:
+      labels:
+        app: backend-main
+    spec:
+      containers:
+        - name: backend-main-container
+          image: backend-main:latest
+          imagePullPolicy: Never
+          env:
+            - name: FRONTEND_URL
+              value: http://frontend-service:80
+            - name: BM25_URL
+              value: http://backend-bm25-service:8001
+            - name: EMBEDDING_URL
+              value: http://backend-embeddings-service:8002
+            - name: CACHE_TABLE
+              value: asrs_query_cache
+            - name: S3_BUCKET
+              value: asrs-storage-anabel-2026
+            - name: S3_KEY
+              value: data/asrs_full.parquet
+            - name: AWS_ACCESS_KEY_BEDROCK
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: AWS_ACCESS_KEY_BEDROCK
+            - name: AWS_SECRET_KEY_BEDROCK
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: AWS_SECRET_KEY_BEDROCK
+            - name: AWS_REGION_BEDROCK
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: AWS_REGION_BEDROCK
+            - name: AWS_ACCESS_KEY_S3
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: AWS_ACCESS_KEY_S3
+            - name: AWS_SECRET_KEY_S3
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: AWS_SECRET_KEY_S3
+            - name: AWS_REGION_S3
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: AWS_REGION_S3
+            - name: SQL_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: SQL_HOST
+            - name: SQL_DATABASE
+              value: postgres
+            - name: SQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: SQL_USER
+            - name: SQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: SQL_PASSWORD
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          ports:
+            - containerPort: 8000
+          readinessProbe:
+            httpGet:
+              scheme: HTTP
+              path: /health
+              port: 8000
+            initialDelaySeconds: 1
+            periodSeconds: 60
+          livenessProbe:
+            httpGet:
+              scheme: HTTP
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 120
+          startupProbe:
+            httpGet:
+              scheme: HTTP
+              path: /health
+              port: 8000
+            failureThreshold: 30
+            periodSeconds: 10

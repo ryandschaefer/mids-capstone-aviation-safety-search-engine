@@ -1,0 +1,49 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-embeddings-deployment
+  namespace: aviation-safety
+spec:
+  template:
+    spec:
+      initContainers:
+        - name: qdrant-init
+          image: qdrant-init:latest
+          env:
+            - name: QDRANT_HOST
+              value: qdrant-service
+            - name: QDRANT_PORT
+              value: "6333"
+            - name: QDRANT_GRPC_PORT
+              value: "6334"
+            - name: QDRANT_COLLECTION
+              value: aviation-safety
+            - name: S3_BUCKET
+              value: asrs-storage-anabel-2026
+            - name: S3_KEY
+              value: embeddings/gte_large_embeddings_2.parquet
+            - name: BATCH_SIZE
+              value: "2000"
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: AWS_ACCESS_KEY_S3
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: AWS_SECRET_KEY_S3
+            - name: AWS_DEFAULT_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: AWS_REGION_S3
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "3Gi"
+            limits:
+              cpu: "1000m"
+              memory: "5Gi"

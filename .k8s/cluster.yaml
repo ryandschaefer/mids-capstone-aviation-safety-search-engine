@@ -1,0 +1,47 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: aviation-safety-capstone-prod
+  region: us-east-1
+  version: "1.34"
+
+# Saves ~$0.10/hr vs default — uses IPv4 and skips unnecessary add-ons
+availabilityZones: ["us-east-1a", "us-east-1b"]
+
+iam:
+  withOIDC: true  # Required for EBS CSI driver (persistent volumes)
+
+managedNodeGroups:
+  # General purpose node — runs frontend, FastAPI driver, BM25
+  - name: general
+    instanceType: t3.medium
+    minSize: 1
+    maxSize: 3
+    desiredCapacity: 2
+    spot: true
+    labels:
+      role: general
+    tags:
+      Project: aviation-safety
+
+  # Memory-optimized node — runs embedding pod and Qdrant
+  # r6i.large: 2 vCPU, 16GB RAM — fits both gte-large (~3Gi) + Qdrant (~4Gi)
+  - name: memory-optimized
+    instanceType: r6i.large
+    minSize: 1
+    maxSize: 2
+    desiredCapacity: 1
+    spot: true
+    labels:
+      role: memory-optimized
+    tags:
+      Project: aviation-safety
+
+addons:
+  - name: coredns
+    version: latest
+  - name: kube-proxy
+    version: latest
+  - name: vpc-cni
+    version: latest
