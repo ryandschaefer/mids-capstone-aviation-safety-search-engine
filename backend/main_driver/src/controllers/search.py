@@ -70,6 +70,9 @@ async def retrieve_docs(query: str, top_k: int, mode: str, times: defaultdict[st
                 on = "doc_id", how = "full", validate = "1:1"
             ) \
             .with_columns(
+                pl.col("doc_id").fill_null(pl.col("doc_id_right")),
+                pl.col("bm25_chunk_id").fill_null(pl.lit([])),
+                pl.col("embedding_chunk_id").fill_null(pl.lit([])),
                 pl.col("bm25_rank").fill_null(len(outputs["embeddings"]) + 1),
                 pl.col("embedding_rank").fill_null(len(outputs["bm25"]) + 1),
             ) \
@@ -177,19 +180,19 @@ async def start_search(
         "use_feedback_1": use_feedback_1
     }
     cache_key = cache.create_key(search_params)
-    cache_value = await cache.get_cache(cache_key)
-    if cache_value:
-        times["cache_read"] = time.time() - cache_start
-        times["api_total"] = time.time() - start
-        return {
-            "cache_key": cache_key,
-            "cached": True,
-            "total_results": len(cache_value),
-            "times": times,
-            "used_queries": []
-        }
-    else:
-        times["cache_read"] = time.time() - cache_start
+    # cache_value = await cache.get_cache(cache_key)
+    # if cache_value:
+    #     times["cache_read"] = time.time() - cache_start
+    #     times["api_total"] = time.time() - start
+    #     return {
+    #         "cache_key": cache_key,
+    #         "cached": True,
+    #         "total_results": len(cache_value),
+    #         "times": times,
+    #         "used_queries": []
+    #     }
+    # else:
+    #     times["cache_read"] = time.time() - cache_start
     
     # Use query expansion
     if use_qe:
