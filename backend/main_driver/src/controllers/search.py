@@ -143,8 +143,8 @@ async def feedback_approach_1(
         times["llm_judge"] += time.time() - judge_start
         
         batch_relevant = df_narratives.filter(pl.col("is_relevant") == True)["doc_id"].to_list()
-        precision = len(batch_relevant) / len(new_batch)
-        print(f"{ len(batch_relevant) }/{ len(new_batch) } documents are relevant. Precision = {precision:.3f}")
+        precision = len(batch_relevant) / len(df_narratives)
+        print(f"{ len(batch_relevant) }/{ len(df_narratives) } documents are relevant. Precision = {precision:.3f}")
         # Only keep relevant docs
         relevant_docs.extend(batch_relevant)
         num_iters += 1
@@ -260,34 +260,39 @@ async def retrieve_page(
         df_page = df_page.slice(page*page_length, page_length)
     times["filter_plus_paginate"] = time.time() - paginate_start
     
-    retrieve_start = time.time()
-    # Get the raw records matching the results and 
-    doc_ids = df_page["doc_id"].to_list()
-    chunk_ids = df_page["chunk_id"].to_list()
-    df_records, df_chunks = await asyncio.gather(data.get_records_by_id(doc_ids), db.get_relevant_chunks(doc_ids, chunk_ids))
-    # assert len(df_page) == len(df_records)
-    # assert len(df_page) == len(df_chunks)
-    times["retrieval"] = time.time() - retrieve_start
-    
-    join_start = time.time()
-    # Join result information with raw records and chunk text
-    df = df_records \
-        .join(
-            df_page,
-            left_on = "acn_num_ACN",
-            right_on = "doc_id",
-            validate = "1:1"
-        ) \
-        .join(
-            df_chunks,
-            left_on = "acn_num_ACN",
-            right_on = "doc_id",
-            validate = "1:1"
-        ) \
-        .sort("score", descending=True) \
-        .drop(["chunk_id"], strict = False)
-    # assert len(df) == len(df_page)
-    times["joins"] = time.time() - join_start
+    # Retrieve results if there are any to retrieve
+    if len(df_page) > 0:
+        retrieve_start = time.time()
+        # Get the raw records matching the results and 
+        doc_ids = df_page["doc_id"].to_list()
+        chunk_ids = df_page["chunk_id"].to_list()
+        df_records, df_chunks = await asyncio.gather(data.get_records_by_id(doc_ids), db.get_relevant_chunks(doc_ids, chunk_ids))
+        # assert len(df_page) == len(df_records)
+        # assert len(df_page) == len(df_chunks)
+        times["retrieval"] = time.time() - retrieve_start
+        
+        join_start = time.time()
+        # Join result information with raw records and chunk text
+        df = df_records \
+            .join(
+                df_page,
+                left_on = "acn_num_ACN",
+                right_on = "doc_id",
+                validate = "1:1"
+            ) \
+            .join(
+                df_chunks,
+                left_on = "acn_num_ACN",
+                right_on = "doc_id",
+                validate = "1:1"
+            ) \
+            .sort("score", descending=True) \
+            .drop(["chunk_id"], strict = False)
+        # assert len(df) == len(df_page)
+        times["joins"] = time.time() - join_start
+    else:
+        df = pl.DataFrame()
+        
     times["api_total"] = time.time() - start_time
     
     return df, len(df_data), times

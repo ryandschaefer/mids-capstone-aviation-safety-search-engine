@@ -505,7 +505,7 @@ export const Results = () => {
                                         )}
                                     />
 
-                                    <Column
+                                    {/* <Column
                                         key="score"
                                         field="score"
                                         header="Relevancy"
@@ -531,7 +531,7 @@ export const Results = () => {
                                                 {record["score"]}
                                             </Box>
                                         )}
-                                    />
+                                    /> */}
 
                                     <Column
                                         key="feedback"
@@ -545,7 +545,8 @@ export const Results = () => {
                                                     <Tooltip title="Relevant">
                                                         <IconButton
                                                             size="small"
-                                                            color={current === "up" ? "primary" : "default"}
+                                                            // color={current === "up" ? "primary" : "default"}
+                                                            color={"default"}
                                                             onClick={() => setDocFeedback(docId, "up")}
                                                         >
                                                             <ThumbUpAltOutlinedIcon fontSize="small" />
@@ -554,7 +555,8 @@ export const Results = () => {
                                                     <Tooltip title="Not relevant">
                                                         <IconButton
                                                             size="small"
-                                                            color={current === "down" ? "error" : "default"}
+                                                            // color={current === "down" ? "error" : "default"}
+                                                            color={"default"}
                                                             onClick={() => setDocFeedback(docId, "down")}
                                                         >
                                                             <ThumbDownAltOutlinedIcon fontSize="small" />
