@@ -1,1 +1,1 @@
-eksctl delete cluster -f cluster.yaml --profile capstone-ryan
+eksctl delete cluster -f .k8s/cluster.yaml --profile capstone-ryan

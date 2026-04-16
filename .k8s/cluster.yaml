@@ -9,30 +9,27 @@ metadata:
 # Saves ~$0.10/hr vs default — uses IPv4 and skips unnecessary add-ons
 availabilityZones: ["us-east-1a", "us-east-1b"]
 
-iam:
-  withOIDC: true  # Required for EBS CSI driver (persistent volumes)
-
 managedNodeGroups:
   # General purpose node — runs frontend, FastAPI driver, BM25
   - name: general
-    instanceType: t3.medium
+    instanceType: t3a.medium
     minSize: 1
     maxSize: 3
-    desiredCapacity: 2
-    spot: true
+    desiredCapacity: 1
+    spot: false
     labels:
       role: general
     tags:
       Project: aviation-safety
 
   # Memory-optimized node — runs embedding pod and Qdrant
-  # r6i.large: 2 vCPU, 16GB RAM — fits both gte-large (~3Gi) + Qdrant (~4Gi)
+  # r6a.large: 2 vCPU, 16GB RAM — fits both gte-large (~3Gi) + Qdrant (~4Gi)
   - name: memory-optimized
-    instanceType: r6i.large
+    instanceType: r6a.large
     minSize: 1
     maxSize: 2
     desiredCapacity: 1
-    spot: true
+    spot: false
     labels:
       role: memory-optimized
     tags:
@@ -40,8 +37,8 @@ managedNodeGroups:
 
 addons:
   - name: coredns
-    version: latest
+    version: v1.13.2-eksbuild.4
   - name: kube-proxy
-    version: latest
+    version: v1.34.6-eksbuild.2
   - name: vpc-cni
-    version: latest
+    version: v1.21.1-eksbuild.7

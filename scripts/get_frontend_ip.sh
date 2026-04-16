@@ -1,0 +1,1 @@
+kubectl get svc -n aviation-safety frontend-service
